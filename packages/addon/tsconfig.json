@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "happy-dom"]
+  },
+  "include": ["index.ts", "setup/**/*.ts", "components/**/*.vue", "composables/**/*.ts", "lib/**/*.ts", "test/**/*.ts"]
+}
