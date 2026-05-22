@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: false,
+    setupFiles: ['./test/setup-mock-socket.ts'],
   },
 })
