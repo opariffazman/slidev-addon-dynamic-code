@@ -141,3 +141,15 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# pnpm
+.pnpm-store/
+# vitest
+coverage/
+# wrangler
+packages/relay/.wrangler/
+packages/relay/.dev.vars
+# build
+dist/
+# OS
+.DS_Store
