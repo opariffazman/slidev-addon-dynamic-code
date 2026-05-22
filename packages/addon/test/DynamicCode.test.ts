@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import lz from 'lz-string'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import DynamicCode from '../components/DynamicCode.vue'
 import { syncKey } from '../components/sync-key'
@@ -68,5 +68,36 @@ describe('<DynamicCode>', () => {
       global: { provide: provideStub({ mode: 'presenter' }) },
     })
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+
+  it('broadcasts an edit after debounce when presenter types', async () => {
+    vi.useFakeTimers()
+    try {
+      const broadcastEdit = vi.fn()
+      const wrapper = mount(DynamicCode, {
+        props: { id: 'install', lang: 'bash', originHash: 'aaaaaaaaaaaa', codeLz },
+        global: {
+          provide: {
+            [syncKey as symbol]: {
+              mode: 'presenter',
+              state: ref({}),
+              status: ref('connected'),
+              broadcastEdit,
+              broadcastReset: () => {},
+              broadcastResetAll: () => {},
+            },
+          },
+        },
+      })
+      const textarea = wrapper.find('textarea')
+      await textarea.setValue('pnpm install foo')
+      vi.advanceTimersByTime(199)
+      expect(broadcastEdit).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(2)
+      expect(broadcastEdit).toHaveBeenCalledWith('install', 'aaaaaaaaaaaa', 'pnpm install foo')
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 })

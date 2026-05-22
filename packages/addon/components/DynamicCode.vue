@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
 import { computed, inject, ref, watch } from 'vue'
 import { syncKey } from './sync-key'
@@ -28,9 +29,18 @@ const incomingContent = computed<string | null>(() => {
 
 const displayContent = computed(() => incomingContent.value ?? liveContent.value)
 
+const debouncedBroadcast = useDebounceFn((value: string) => {
+  sync?.broadcastEdit(props.id, props.originHash, value)
+}, 200)
+
 watch(incomingContent, (val) => {
   if (val != null)
     liveContent.value = val
+})
+
+watch(liveContent, (val) => {
+  if (sync?.mode === 'presenter' && val !== incomingContent.value)
+    debouncedBroadcast(val)
 })
 
 const readonly = computed(() => sync?.mode !== 'presenter')
