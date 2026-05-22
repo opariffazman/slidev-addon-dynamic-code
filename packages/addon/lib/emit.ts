@@ -1,0 +1,22 @@
+import lz from 'lz-string'
+import { originHash } from './hash'
+
+export interface EmitInput {
+  id: string
+  lang: string
+  code: string
+  extraMeta: string | null
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+export async function emitDynamicCode(input: EmitInput): Promise<string> {
+  const hash = await originHash(input.code)
+  const encoded = lz.compressToBase64(input.code)
+  const meta = input.extraMeta
+    ? ` v-bind="${input.extraMeta.replace(/"/g, '\\"')}"`
+    : ''
+  return `<DynamicCode id="${escapeAttr(input.id)}" lang="${escapeAttr(input.lang)}" origin-hash="${hash}" code-lz="${encoded}"${meta} />`
+}
