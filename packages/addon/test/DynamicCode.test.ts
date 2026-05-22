@@ -141,4 +141,37 @@ describe('<DynamicCode>', () => {
       vi.useRealTimers()
     }
   })
+
+  it('shows connection badge in presenter mode', () => {
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'a', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'presenter', status: 'connected' }) },
+    })
+    const badge = wrapper.find('.dynamic-code-badge')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('●')
+  })
+
+  it('hides connection badge in audience mode', () => {
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'a', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'audience', status: 'connected' }) },
+    })
+    expect(wrapper.find('.dynamic-code-badge').exists()).toBe(false)
+  })
+
+  it('badge changes glyph by status', () => {
+    for (const [status, glyph] of [
+      ['connected', '●'],
+      ['reconnecting', '◐'],
+      ['offline', '○'],
+      ['rejected', '⚠'],
+    ] as const) {
+      const wrapper = mount(DynamicCode, {
+        props: { id: 'a', lang: 'bash', originHash: 'h', codeLz },
+        global: { provide: provideStub({ mode: 'presenter', status }) },
+      })
+      expect(wrapper.find('.dynamic-code-badge').text()).toBe(glyph)
+    }
+  })
 })

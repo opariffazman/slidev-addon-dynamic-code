@@ -49,6 +49,18 @@ const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {
   copy(displayContent.value)
 }
+
+const isPresenter = computed(() => sync?.mode === 'presenter')
+const statusGlyph = computed(() => {
+  switch (sync?.status.value) {
+    case 'connected': return '●'
+    case 'reconnecting': return '◐'
+    case 'rejected': return '⚠'
+    case 'connecting':
+    case 'offline':
+    default: return '○'
+  }
+})
 </script>
 
 <template>
@@ -63,6 +75,11 @@ function onCopy(): void {
       autocorrect="off"
       autocapitalize="off"
     />
+    <span
+      v-if="isPresenter"
+      class="dynamic-code-badge"
+      :data-status="sync?.status.value"
+    >{{ statusGlyph }}</span>
     <button
       class="dynamic-code-copy"
       :title="copied ? 'Copied' : 'Copy'"
@@ -123,4 +140,16 @@ function onCopy(): void {
 }
 .dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.6; }
 .dynamic-code-copy:hover { opacity: 1 !important; }
+.dynamic-code-badge {
+  position: absolute;
+  top: 0.25em;
+  right: 2.25em;
+  font-size: 0.9em;
+  opacity: 0.7;
+  user-select: none;
+}
+.dynamic-code-badge[data-status="rejected"] { color: #ef4444; }
+.dynamic-code-badge[data-status="offline"]  { color: #f59e0b; }
+.dynamic-code-badge[data-status="reconnecting"] { color: #f59e0b; }
+.dynamic-code-badge[data-status="connected"]   { color: #10b981; }
 </style>
