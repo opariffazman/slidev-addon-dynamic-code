@@ -1,9 +1,9 @@
 {
   "name": "@opariffazman/slidev-dynamic-code-relay",
-  "version": "0.0.0",
-  "description": "Cloudflare Worker relay for slidev-addon-dynamic-code",
-  "private": true,
   "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloudflare Worker relay for slidev-addon-dynamic-code",
   "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
