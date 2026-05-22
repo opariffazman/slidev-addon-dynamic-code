@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["vitest/globals", "happy-dom"]
   },
-  "include": ["index.ts", "setup/**/*.ts", "components/**/*.vue", "composables/**/*.ts", "lib/**/*.ts", "test/**/*.ts"]
+  "include": ["env.d.ts", "index.ts", "setup/**/*.ts", "components/**/*.vue", "composables/**/*.ts", "lib/**/*.ts", "test/**/*.ts"]
 }
