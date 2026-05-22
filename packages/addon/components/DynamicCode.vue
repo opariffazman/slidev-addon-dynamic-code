@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core'
+import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
 import { computed, inject, ref, watch } from 'vue'
 import { syncKey } from './sync-key'
@@ -44,10 +44,15 @@ watch(liveContent, (val) => {
 })
 
 const readonly = computed(() => sync?.mode !== 'presenter')
+
+const { copy, copied } = useClipboard({ legacy: true })
+function onCopy(): void {
+  copy(displayContent.value)
+}
 </script>
 
 <template>
-  <div class="dynamic-code-wrapper">
+  <div class="dynamic-code-wrapper group">
     <pre class="dynamic-code-pre"><code>{{ displayContent }}</code></pre>
     <textarea
       v-model="liveContent"
@@ -58,6 +63,14 @@ const readonly = computed(() => sync?.mode !== 'presenter')
       autocorrect="off"
       autocapitalize="off"
     />
+    <button
+      class="dynamic-code-copy"
+      :title="copied ? 'Copied' : 'Copy'"
+      type="button"
+      @click="onCopy"
+    >
+      {{ copied ? '✓' : '⧉' }}
+    </button>
   </div>
 </template>
 
@@ -96,4 +109,18 @@ const readonly = computed(() => sync?.mode !== 'presenter')
   overflow: hidden;
 }
 .dynamic-code-textarea::selection { background: rgba(127, 127, 127, 0.4); }
+.dynamic-code-copy {
+  position: absolute;
+  top: 0.25em;
+  right: 0.25em;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 1.1em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.6; }
+.dynamic-code-copy:hover { opacity: 1 !important; }
 </style>

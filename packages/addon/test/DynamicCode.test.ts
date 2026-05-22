@@ -70,6 +70,47 @@ describe('<DynamicCode>', () => {
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
 
+  it('copy button copies current display content (audience mode)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    })
+    // Stub execCommand for legacy clipboard fallback in happy-dom
+    const execCommandMock = vi.fn().mockReturnValue(true)
+    Object.defineProperty(document, 'execCommand', {
+      value: execCommandMock,
+      writable: true,
+      configurable: true,
+    })
+
+    const state = { install: { hash: 'aaaaaaaaaaaa', content: 'yarn add foo' } }
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'aaaaaaaaaaaa', codeLz },
+      global: { provide: provideStub({ mode: 'audience', state }) },
+    })
+
+    await wrapper.find('button.dynamic-code-copy').trigger('click')
+    // Either clipboard API or legacy execCommand was invoked
+    const clipboardUsed = writeText.mock.calls.some(args => args[0] === 'yarn add foo')
+    const legacyUsed = execCommandMock.mock.calls.length > 0
+    expect(clipboardUsed || legacyUsed).toBe(true)
+  })
+
+  it('copy button is rendered in both modes', () => {
+    const audience = mount(DynamicCode, {
+      props: { id: 'a', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'audience' }) },
+    })
+    const presenter = mount(DynamicCode, {
+      props: { id: 'a', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    expect(audience.find('button.dynamic-code-copy').exists()).toBe(true)
+    expect(presenter.find('button.dynamic-code-copy').exists()).toBe(true)
+  })
+
   it('broadcasts an edit after debounce when presenter types', async () => {
     vi.useFakeTimers()
     try {
