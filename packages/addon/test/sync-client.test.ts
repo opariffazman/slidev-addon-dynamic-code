@@ -39,7 +39,9 @@ describe('syncClient', () => {
     const presenterServer = new Server(`${URL_BASE}/pub?talk=test&token=secret`)
     const messages: string[] = []
     presenterServer.on('connection', (socket) => {
-      socket.on('message', (m) => { messages.push(String(m)) })
+      socket.on('message', (m) => {
+        messages.push(String(m))
+      })
     })
 
     const client = new SyncClient({
