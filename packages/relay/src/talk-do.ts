@@ -1,12 +1,18 @@
 import { DurableObject } from 'cloudflare:workers'
 
-interface BlockRow { id: string, hash: string, content: string, updated_at: number }
+interface BlockRow {
+  id: string
+  hash: string
+  content: string
+  updated_at: number
+  [key: string]: SqlStorageValue
+}
 
 const MAX_CONTENT_BYTES = 32 * 1024
 const MAX_BLOCKS = 200
 
 export class TalkDO extends DurableObject {
-  constructor(state: DurableObjectState, env: unknown) {
+  constructor(state: DurableObjectState, env: any) {
     super(state, env)
     this.ctx.blockConcurrencyWhile(async () => {
       this.ctx.storage.sql.exec(`
