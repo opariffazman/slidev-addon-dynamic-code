@@ -174,4 +174,29 @@ describe('<DynamicCode>', () => {
       expect(wrapper.find('.dynamic-code-badge').text()).toBe(glyph)
     }
   })
+
+  it('reset event triggers broadcastReset and restores fenced content', async () => {
+    const broadcastReset = vi.fn()
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz },
+      global: {
+        provide: {
+          [syncKey as symbol]: {
+            mode: 'presenter',
+            state: ref({ install: { hash: 'h', content: 'pnpm i' } }),
+            status: ref('connected'),
+            broadcastEdit: () => {},
+            broadcastReset,
+            broadcastResetAll: () => {},
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('pnpm i')
+    await wrapper.find('.dynamic-code-wrapper').element.dispatchEvent(new CustomEvent('dynamic-code:reset', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(broadcastReset).toHaveBeenCalledWith('install')
+  })
 })

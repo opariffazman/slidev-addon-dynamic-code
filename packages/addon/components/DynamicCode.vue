@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
-import { computed, inject, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { syncKey } from './sync-key'
 
 const props = defineProps<{
@@ -45,6 +45,16 @@ watch(liveContent, (val) => {
 
 const readonly = computed(() => sync?.mode !== 'presenter')
 
+const wrapperRef = ref<HTMLElement | null>(null)
+function onReset(): void {
+  if (sync?.mode !== 'presenter')
+    return
+  sync?.broadcastReset(props.id)
+  liveContent.value = fenced
+}
+onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
+onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
+
 const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {
   copy(displayContent.value)
@@ -64,7 +74,7 @@ const statusGlyph = computed(() => {
 </script>
 
 <template>
-  <div class="dynamic-code-wrapper group">
+  <div ref="wrapperRef" class="dynamic-code-wrapper group">
     <pre class="dynamic-code-pre"><code>{{ displayContent }}</code></pre>
     <textarea
       v-model="liveContent"
