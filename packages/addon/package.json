@@ -10,7 +10,12 @@
     "url": "https://github.com/opariffazman/slidev-addon-dynamic-code.git",
     "directory": "packages/addon"
   },
-  "keywords": ["slidev-addon", "slidev", "presentation", "live-coding"],
+  "keywords": [
+    "slidev-addon",
+    "slidev",
+    "presentation",
+    "live-coding"
+  ],
   "exports": {
     ".": "./index.ts",
     "./setup/transformers": "./setup/transformers.ts",
@@ -43,6 +48,7 @@
   },
   "devDependencies": {
     "@slidev/types": "^52.0.0",
+    "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^15.11.7",
     "mock-socket": "^9.3.1",
