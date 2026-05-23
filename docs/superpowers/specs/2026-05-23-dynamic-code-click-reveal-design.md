@@ -62,14 +62,23 @@ echo e
 
 ### State machine
 
+Define `revealIndex = max(0, clicksCtx.current - clicksInfo.start + 1)`. This is the
+index into `ranges` for the currently-displayed step. Matches Slidev's
+`<CodeBlockWrapper>` exactly so click accounting agrees.
+
 | Phase | Condition | Highlight | Textarea |
 | --- | --- | --- | --- |
-| Reveal | `clicksCtx.current < clicksInfo.end` | active per current step | read-only, no sync writes |
-| Final | `clicksCtx.current >= clicksInfo.end` | `all` (no dimming) | editable for presenter, edits broadcast |
+| Reveal | `revealIndex < ranges.length - 1` | `ranges[revealIndex]` (per-step) | read-only, no sync writes |
+| Final | `revealIndex >= ranges.length - 1` | `ranges[ranges.length - 1]` (last item) | editable for presenter, edits broadcast |
+
+The block unlocks WHILE the FINAL `ranges` item is being displayed — i.e., as soon as
+the user clicks far enough to reveal the last step (`'all'` in the typical
+`{2-3|5|all}` case). No extra click required. The next click after that advances to
+whatever's next on the slide (or the next slide).
 
 - Audience: always read-only (existing behavior).
 - Presenter without `ranges`: editable immediately (existing behavior).
-- Presenter with `ranges`: read-only during reveal, editable at final.
+- Presenter with `ranges`: read-only during reveal, editable once final step reached.
 
 ### Backward navigation (edit + click-back)
 
@@ -128,9 +137,20 @@ export function parseRangeSteps(s: string | null): string[] | null
 //  "1,3"       → ["1,3"]
 //  null / non-range pattern → null
 
-export function parseHighlightRange(spec: string, lineCount: number, startLine = 1): Set<number>
-//  "1,3-5", "all", "*", "hide" → set of 1-based line indices to highlight
-//  "hide" / "all" / "*" handled as special cases
+export function parseHighlightRange(spec: string, lineCount: number): Set<number>
+//  Returns the set of 1-based line indices that should carry the `.highlighted`
+//  class for this step.
+//    "1,3-5"        → {1, 3, 4, 5}
+//    "all" / "*"    → {}  (sentinel: "no special highlight" — block renders
+//                          normally; Slidev's `pre:has(.line.highlighted)`
+//                          dim selector requires at least one .highlighted
+//                          line to engage dimming, so empty set = normal look)
+//    "hide"         → {}  (caller applies the hide class on the wrapper)
+//    out-of-range n → silently skipped (n > lineCount)
+//
+//  Note: no `startLine` parameter — the `{startLine:N}` modifier is in the
+//  warned-and-ignored list for v0.2.0 (see Non-goals). Ranges are always
+//  interpreted against 1-based source-relative line indices.
 ```
 
 ### Updated `parse-directive.ts`
@@ -192,7 +212,11 @@ const clicksCtx = slideCtx?.$clicksContext ?? null
 Click registration (only if `ranges` present AND `clicksCtx` available):
 
 ```ts
-const componentId = makeUniqueId()              // per-mount
+// Per-mount unique id for $clicksContext bookkeeping. Crypto-random is fine —
+// no persistence across mounts, never reused within a session. Distinct from
+// the deck-wide block `id` prop (which IS persistent and used by the sync
+// layer).
+const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
 let clicksInfo: { start: number; end: number } | null = null
 
 onMounted(() => {
@@ -209,21 +233,32 @@ onUnmounted(() => {
 Reveal computeds:
 
 ```ts
-const inReveal = computed(() => {
-  if (!props.ranges?.length || !clicksCtx || !clicksInfo) return false
-  return clicksCtx.current < clicksInfo.end
+// 1-based index into `ranges` for the currently-displayed step. Returns -1
+// when ranges are absent or context unavailable (in which case the rest of
+// the reveal logic short-circuits).
+const revealIndex = computed(() => {
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo) return -1
+  return Math.max(0, clicksCtx.current - clicksInfo.start + 1)
 })
 
-// Returns the range string to apply for the current click step.
+// True while the user is still walking through reveal steps before the final
+// one. Unlocks editing once the final ranges item is displayed (NOT after — see
+// State machine section for rationale).
+const inReveal = computed(() => {
+  if (!props.ranges?.length || revealIndex.value < 0) return false
+  return revealIndex.value < props.ranges.length - 1
+})
+
+// Returns the range string to apply at the current click step.
 // Handles "hide" fallthrough exactly like Slidev's CodeBlockWrapper.vue.
 const currentRange = computed<{ spec: string; hide: boolean }>(() => {
-  if (!props.ranges?.length || !inReveal.value || !clicksInfo)
+  if (!props.ranges?.length || revealIndex.value < 0)
     return { spec: 'all', hide: false }
-  const idx = Math.max(0, clicksCtx!.current - clicksInfo.start + 1)
-  let spec = props.ranges[idx] ?? props.ranges.at(-1)!
+  const clamped = Math.min(revealIndex.value, props.ranges.length - 1)
+  let spec = props.ranges[clamped]!
   const hide = spec === 'hide'
   if (hide)
-    spec = props.ranges[idx + 1] ?? props.ranges.at(-1)!
+    spec = props.ranges[clamped + 1] ?? props.ranges.at(-1)!
   return { spec, hide }
 })
 ```
@@ -268,13 +303,15 @@ watchEffect(() => {
 })
 ```
 
-CSS: existing Slidev styles for `.line.highlighted` and the
-`pre:has(.line.highlighted) .line:not(.highlighted)` dim selector are loaded from
-`@slidev/client/styles/code.css` via Slidev's normal client bundle. No new CSS rules
-added in this addon for highlight/dim — we adopt Slidev's classes verbatim. Verify
-during implementation that Slidev's dimming actually uses `:has()` and not a parent
-class like `.has-highlighted`; if the latter, the `pre.classList.toggle(...)` above is
-needed. If `:has()`, the toggle is harmless extra.
+CSS: existing Slidev styles for `.line.highlighted` and the dimming of
+non-highlighted siblings are loaded from `@slidev/client/styles/code.css` via Slidev's
+normal client bundle. No new CSS rules added in this addon for highlight/dim — we adopt
+Slidev's classes verbatim.
+
+The watchEffect toggles BOTH `.highlighted` (per line) AND a `.has-highlighted` marker
+on `pre`. Slidev's dim rule today uses `pre:has(.line.highlighted)`; the redundant
+parent-class toggle is harmless and survives if Slidev ever switches to a parent-class
+selector. Cheap insurance.
 
 ## File diff summary
 
@@ -311,7 +348,9 @@ needed. If `:has()`, the toggle is harmless extra.
 - `'maxHeight:"200px"'` → `null`
 - `"a|b|c"` → `null`
 - `parseHighlightRange("2-3,5", 10)` → `{2,3,5}`
-- `parseHighlightRange("all", 4)` → `{1,2,3,4}`
+- `parseHighlightRange("2-3,5", 4)` → `{2,3}` (line 5 out-of-range, silently dropped)
+- `parseHighlightRange("all", 4)` → `{}` (sentinel — no special highlight)
+- `parseHighlightRange("*", 4)` → `{}` (sentinel — no special highlight)
 - `parseHighlightRange("hide", 4)` → `{}`
 
 `packages/addon/test/parse-directive.test.ts` (update):
@@ -327,15 +366,23 @@ needed. If `:has()`, the toggle is harmless extra.
 `packages/addon/test/DynamicCode.test.ts` (update):
 - No `ranges`: presenter textarea editable immediately, `broadcastEdit` called on
   input (existing tests preserved).
-- `ranges` provided, `$clicksContext` mock with `current=0`, `register` returns
-  `{start:0,end:3}`: presenter textarea read-only, `broadcastEdit` NOT called on
-  programmatic input.
-- `ranges` provided, mock `current` advanced to `>= end`: presenter textarea
-  editable, `broadcastEdit` called.
+- `ranges=["2-3","5","all"]`, `$clicksContext` mock with `register` returning
+  `{start:1,end:3}` and `current=0` (entry): presenter textarea read-only,
+  `broadcastEdit` NOT called on programmatic input. `revealIndex` = 0,
+  `inReveal` = true.
+- Same setup, `current=1`: revealIndex = 1, inReveal = true (showing `'5'`),
+  still read-only.
+- Same setup, `current=2`: revealIndex = 2 = `ranges.length - 1`, inReveal =
+  FALSE (showing `'all'`, final state), textarea editable, `broadcastEdit`
+  called. Confirms no-extra-click-required unlock.
 - `ranges` provided but `useSlideContext` throws: behaves like no-ranges case
-  (immediate unlock).
-- After shiki render, lines matching current range have `.highlighted` class;
-  others do not. Range advances on `current` change.
+  (immediate unlock, no register call).
+- After shiki render: at `revealIndex=0` ("2-3"), lines 2 & 3 carry
+  `.highlighted`, `pre` carries `.has-highlighted`. At `revealIndex=2`
+  ("all"), no `.highlighted` on any line, no `.has-highlighted` on `pre`.
+- Range advances reactively on `current` change without remount.
+- `hide` fallthrough: `ranges=["hide","2-3","all"]`, `revealIndex=0` →
+  wrapper carries `slidev-vclick-hidden`, highlight uses ranges[1] (`'2-3'`).
 
 No relay-side tests added or modified.
 
@@ -343,11 +390,12 @@ No relay-side tests added or modified.
 
 1. `pnpm pack` into `vendor/`, install in a real deck via `file:./vendor/...`.
 2. Slide with `\`\`\`bash {dynamic id=demo} {2-3|5|all}` and 5 lines of bash.
-3. Click 1 → lines 2-3 highlighted, textarea read-only, no caret cursor on focus.
-4. Click 2 → line 5 highlighted, still read-only.
-5. Click 3 → no dimming, textarea now accepts input.
+3. Slide entry (no clicks yet) → lines 2-3 highlighted, textarea read-only.
+4. Click 1 → line 5 highlighted, still read-only.
+5. Click 2 → no dimming (`'all'` step), textarea now accepts input — final
+   reveal item reached, unlock with no extra click required.
 6. Type → audience tab (separate browser) reflects edit live.
-7. Click back → textarea re-locks, highlight returns.
+7. Click back → textarea re-locks, highlight returns to previous step.
 8. Reset via Ctrl+Shift+R → content restored to fenced original, click position
    unchanged.
 
