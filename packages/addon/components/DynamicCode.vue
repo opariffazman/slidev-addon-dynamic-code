@@ -150,7 +150,7 @@ const renderedHtml = computed(() => {
 .dynamic-code-wrapper {
   position: relative;
   overflow: hidden;
-  border-radius: var(--slidev-code-radius, 6px);
+  border-radius: var(--slidev-code-radius);
 }
 .dynamic-code-render :deep(pre.slidev-code) {
   margin: 0;
@@ -162,14 +162,14 @@ const renderedHtml = computed(() => {
   height: 100%;
   background: transparent;
   color: transparent;
-  caret-color: #000;
+  caret-color: var(--shiki-light);
   border: none;
   outline: none;
   resize: none;
-  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  font-family: var(--slidev-code-font-family);
   font-size: var(--slidev-code-font-size, inherit);
-  line-height: var(--slidev-code-line-height, 1.5);
-  padding: var(--slidev-code-padding, 0.75em 1em);
+  line-height: var(--slidev-code-line-height);
+  padding: var(--slidev-code-padding);
   margin: 0;
   white-space: pre;
   overflow: hidden;
@@ -177,11 +177,11 @@ const renderedHtml = computed(() => {
   border-radius: inherit;
   transition: box-shadow 120ms ease, background-color 120ms ease;
 }
-html.dark .dynamic-code-textarea { caret-color: #fff; }
-.dynamic-code-textarea::selection { background: rgba(127, 127, 127, 0.4); }
+html.dark .dynamic-code-textarea { caret-color: var(--shiki-dark); }
+.dynamic-code-textarea::selection { background: rgb(127 127 127 / 0.4); }
 .dynamic-code-textarea:focus:not([readonly]) {
-  box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.7);
-  background-color: rgba(96, 165, 250, 0.06);
+  box-shadow: inset 0 0 0 2px rgb(from var(--slidev-controls-foreground, #60a5fa) r g b / 0.7);
+  background-color: rgb(from var(--slidev-controls-foreground, #60a5fa) r g b / 0.06);
 }
 .dynamic-code-copy {
   position: absolute;

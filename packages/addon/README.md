@@ -1,117 +1,230 @@
 # slidev-addon-dynamic-code
 
-Live-editable code blocks for Slidev presentations.
+Live-editable code blocks for [Slidev](https://sli.dev) presentations. Edit a snippet on the slide during a talk, and every audience browser viewing the same deck updates within a second — no rebuild, no reload.
 
-## Why
+Static-build friendly: works on Cloudflare Pages, Netlify, GitHub Pages, or any plain HTML host. The sync layer is a 50-line Cloudflare Worker you deploy once.
 
-When presenting a technical talk with shell commands, scripts, or code snippets, you often need to tweak a single flag, fix a missing dep, or correct a path on the fly. Today that means rebuilding the deck or switching to a separate terminal. This addon lets you edit specific code blocks at runtime and broadcasts the change to every audience browser viewing the same deck — no rebuild, no reload.
+## Why this exists
 
-## Architecture in 60 seconds
+Live technical talks — CLI demos, build scripts, code walkthroughs — constantly run into "this command needs one small change". Today the choices are: rebuild and reload, switch to a separate terminal as the source of truth, or ask the audience to mentally edit the snippet. None preserve flow.
 
-- You mark code blocks with `{dynamic id=NAME}` in markdown.
-- A pnpm-installed Slidev addon swaps those blocks for an editable component.
-- A small Cloudflare Worker (the **relay**) you deploy once brokers edits between presenter and audience.
-- Presenter URL: `https://your-slides.example.com/?presenter=SECRET`. Audience URL: same site without the query.
+This addon adds a `{dynamic id=NAME}` directive that turns marked blocks into an editable textarea overlaid on the slidev-rendered code. Presenter edits broadcast over WebSocket to all viewers of the same deck.
 
-## Install the addon
+## Requirements
+
+- Slidev `>= 52.15.0` (uses the `codeblocks` transformer API added in `52.15.x`).
+- pnpm / npm / yarn — any.
+- A Cloudflare account (free tier is enough). Account ID + an API token with Workers + Durable Objects permissions.
+
+## Install
 
 ```bash
 pnpm add -D slidev-addon-dynamic-code
 ```
 
-Add the addon and its config to `slides.md` frontmatter:
+Add the addon and its config to the slidev frontmatter of your deck's `slides.md`:
 
 ```yaml
 ---
-addons: [slidev-addon-dynamic-code]
+addons:
+  - slidev-addon-dynamic-code
 dynamicCode:
-  relayUrl: https://relay.yourname.workers.dev # from `wrangler deploy`
-  talkId: my-talk-2026 # any stable string per deck
+  relayUrl: https://slidev-dynamic-code-relay.YOUR-SUBDOMAIN.workers.dev
+  talkId: my-talk-2026-05
 ---
 ```
 
+Where:
+
+| Key         | Required | Value                                                                                                                                     |
+|-------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `relayUrl`  | yes      | URL printed by `wrangler deploy` (see [Deploy the relay](#deploy-the-relay-once)). `http://` and `https://` are converted to `ws://` / `wss://` at runtime. |
+| `talkId`    | yes      | Any stable string per deck. Persisted edits live in a Durable Object keyed by this id — change it for a fresh slate.                       |
+
 ## Mark a code block dynamic
 
+In any slide / page markdown:
+
 ````md
-```bash {dynamic id=install-deps}
-npm install some-package
+```bash {dynamic id=lab15-deploy}
+npx wrangler deploy
+curl https://api.YOUR_SUBDOMAIN.workers.dev/health
 ```
 ````
 
 Rules:
-- `id=` is required. Use stable, descriptive names (`install-deps`, `run-tests`).
-- Ids must be unique across the entire deck.
-- Allowed id characters: letters, digits, `_`, `-`.
 
-## Deploy the relay (one-time)
+- `id=` is **required**. Use stable, descriptive names like `lab15-deploy`, `install-deps`, `run-tests`.
+- Ids must be unique **across the whole deck** (the addon throws a build error otherwise).
+- Allowed id characters: `[a-zA-Z0-9_-]`.
 
-The relay lives in [`packages/relay`](../relay) of this monorepo. You can deploy it directly from a clone:
+The block renders normally for everyone until the presenter starts editing.
+
+## Deploy the relay (once)
+
+The Worker + Durable Object that brokers edits between presenter and audience.
+
+### From an npm clone (recommended for now)
 
 ```bash
 git clone https://github.com/opariffazman/slidev-addon-dynamic-code.git
 cd slidev-addon-dynamic-code/packages/relay
 pnpm install
-pnpm wrangler login                           # one-time
-pnpm wrangler secret put PRESENTER_TOKEN      # type your secret when prompted
+```
+
+If you have an interactive browser available:
+
+```bash
+pnpm wrangler login
+```
+
+If you're on a headless server (no localhost callback), use a Cloudflare API token instead:
+
+```bash
+export CLOUDFLARE_API_TOKEN="…"      # from https://dash.cloudflare.com/profile/api-tokens (template: Edit Cloudflare Workers)
+export CLOUDFLARE_ACCOUNT_ID="…"     # right sidebar of any zone on https://dash.cloudflare.com
+```
+
+Then:
+
+```bash
 pnpm wrangler deploy
 ```
 
-`wrangler deploy` prints a URL like `https://slidev-dynamic-code-relay.your-subdomain.workers.dev`. Put that in `dynamicCode.relayUrl`.
+Copy the printed URL (something like `https://slidev-dynamic-code-relay.YOUR-SUBDOMAIN.workers.dev`) into the `dynamicCode.relayUrl` field of your deck.
 
-Treat the presenter token like a password — rotate it after every public talk:
+### Set the presenter token
 
 ```bash
-pnpm wrangler secret put PRESENTER_TOKEN
+openssl rand -hex 16 | pnpm wrangler secret put PRESENTER_TOKEN
 ```
+
+(Or paste a strong random string interactively at the prompt.)
+
+You'll use this token as `?presenter=…` in URLs (see below). **Save it.** It's a write-only secret; you can't view it later, only rotate.
+
+### Verify
+
+```bash
+curl -i "https://slidev-dynamic-code-relay.YOUR-SUBDOMAIN.workers.dev/sub?talk=ping"
+# Expect HTTP/2 426 (expected websocket upgrade) — proves the Worker + DO routing are live.
+```
+
+## Use it during a talk
+
+- **Presenter (you):** open `https://your-deck.example.com/?presenter=YOUR_TOKEN`
+- **Audience:** open `https://your-deck.example.com/` on their own devices
+
+Then:
+
+- Click into any `{dynamic}` block → caret appears + blue focus ring → type freely. The audience sees your edits in ~1 second (debounced 200 ms).
+- A **`●` green badge** top-right of each dynamic block confirms the WebSocket is live (presenter-only — audience never sees it).
+- **Right-click → "Reset dynamic block"** restores that block to its fenced original.
+- **`Ctrl+Shift+R`** (or `Cmd+Shift+R`) while focused inside a block — same reset.
+- **Copy button** (small `⧉` top-right on hover) — copies the **currently displayed** content. Available to both presenter and audience.
+
+## Admin route
+
+`https://your-deck.example.com/dynamic-code-admin?presenter=YOUR_TOKEN`
+
+Shows every block id currently in the Durable Object for this `talkId`, with per-row **Reset** buttons and a **Reset all** button. Useful before a fresh run-through.
+
+## Connection badge
+
+The presenter-only badge top-right of each dynamic block:
+
+| Glyph | Status        | Meaning                                                                                |
+|-------|---------------|----------------------------------------------------------------------------------------|
+| `●`   | connected     | Green. WebSocket open, edits flowing.                                                  |
+| `◐`   | reconnecting  | Amber. Lost the WS mid-talk; retrying with exponential backoff (1s → 30s cap).         |
+| `○`   | offline       | Amber. Couldn't connect on first try; will keep retrying.                              |
+| `⚠`   | rejected      | Red. The relay returned 401 — your `?presenter=…` token doesn't match the Worker secret. |
+
+## Theme integration
+
+The addon reuses Slidev's own `slidev-code-wrapper` + `slidev-code` classes for the container, so background, padding, border-radius, font, and margin all follow your active Slidev theme without further configuration.
+
+Syntax highlighting uses Shiki dual themes (`vitesse-light` / `vitesse-dark`) and respects Slidev's existing `html.dark .shiki` toggle, so the block flips when you press `D` (dark mode toggle).
+
+The caret colour uses Slidev's `--shiki-light` / `--shiki-dark` vars so it stays readable in both themes.
+
+## Persistence semantics
+
+- Edits are persisted forever in the Durable Object's SQLite, keyed by `(talkId, blockId)`.
+- They survive Worker code redeploys, DO hibernation, and audience refreshes.
+- Reset paths: per-block (context menu, `Ctrl+Shift+R`) or whole-talk (admin route → Reset all).
+- If you redeploy the deck with a different fenced source for an existing block id, the **origin hash** baked at build time changes. The DO entry is automatically invalidated on the next presenter edit, so audience browsers see the new fenced content instead of stale persisted edits.
+- To wipe state for the next cohort without using the admin UI, change `dynamicCode.talkId` to a new value and redeploy. (The old DO storage stays orphaned but does not bill while hibernated.)
+
+## Multiple decks / multiple projects
+
+One relay deploy can serve any number of decks. Each deck just sets a unique `dynamicCode.talkId` in its frontmatter and points at the same `relayUrl`. The Durable Object instance is keyed by `talkId`, so deck A's edits are invisible to deck B's audience.
+
+Single `PRESENTER_TOKEN` works across all talks on the relay. If you need per-talk tokens (e.g. delegating presenter rights to someone for one deck only), extend the Worker — see `packages/relay/src/index.ts`.
 
 ## Pre-talk runbook
 
 A 5-minute check before going live.
 
-1. **Deploy slides** as usual (e.g. `slidev build && wrangler pages deploy dist`).
-2. **Visit the audience URL** on a second device or an incognito window. Confirm the dynamic blocks render and the connection badge is hidden.
-3. **Visit the presenter URL** with `?presenter=YOUR_TOKEN`. Confirm the badge shows `●` (green).
-4. **Type into a dynamic block.** The audience window should reflect the change within ~1 second.
-5. **Right-click a dynamic block → "Reset dynamic block".** The audience falls back to the original fenced content.
-6. **Visit `/dynamic-code-admin?presenter=YOUR_TOKEN`.** Confirm "Reset all" works and the list is empty after.
+1. **Deploy the deck** as usual (`slidev build` then your static host's deploy command).
+2. **Visit the audience URL** on a second device / incognito window. Confirm dynamic blocks render exactly like regular code blocks.
+3. **Visit the presenter URL** with `?presenter=YOUR_TOKEN`. Confirm the `●` badge appears top-right of each dynamic block.
+4. **Type into a dynamic block.** The audience window reflects the change within ~1 second.
+5. **Right-click → "Reset dynamic block".** Both screens snap back to the fenced original.
+6. **Visit `/dynamic-code-admin?presenter=YOUR_TOKEN`.** Confirm "Reset all" works and the table is empty after.
 
-If any step fails, see Troubleshooting below.
-
-## Keyboard and UI
-
-- **`Ctrl+Shift+R`** (or `Cmd+Shift+R` on macOS) while focused inside a dynamic block — resets that block to fenced content.
-- **Right-click** on a dynamic block in presenter mode — "Reset dynamic block" appears in the context menu.
-- **`/dynamic-code-admin`** with `?presenter=TOKEN` — table of all known blocks with per-row and "Reset all" actions.
-- **Copy button** (top right on hover) — copies the currently displayed content, available to both presenter and audience.
-- **Connection badge** (top right, presenter only):
-  - `●` connected
-  - `◐` reconnecting
-  - `○` offline (initial failure)
-  - `⚠` token rejected
+If anything fails, see [Troubleshooting](#troubleshooting).
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Build error `missing required id=` | Forgot `id=` in a `{dynamic}` block | Add a stable id |
-| Build error `duplicate id "X"` | Same id on two slides | Rename one |
-| Build error `dynamicCode.relayUrl is required` | Missing or malformed config in frontmatter | Add the `dynamicCode:` block |
-| Badge shows `⚠` | Wrong presenter token | Re-check `wrangler secret put PRESENTER_TOKEN`; copy URL again |
-| Badge shows `○` and never connects | Relay URL typo or worker not deployed | Verify with `curl https://relay.../sub?talk=test` — should respond with a websocket upgrade error, not 404 |
-| Edits not propagating | Audience may be on stale browser cache | Hard-reload audience page |
-| Edits propagate but disappear on refresh | Audience cleared localStorage / hash mismatch | Verify presenter token isn't being rotated mid-talk |
+| Symptom                                                          | Likely cause                                                                                            | Fix                                                                                                       |
+|------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| Build error `missing required id=NAME on slide N`                | Forgot `id=` in a `{dynamic}` block                                                                     | Add `id=stable-name`                                                                                       |
+| Build error `duplicate id "X" on slides N and M`                 | Same id on two slides                                                                                   | Rename one. Ids must be unique across the entire deck.                                                    |
+| Build error `dynamicCode.relayUrl is required`                   | Missing or malformed config block in slides frontmatter                                                 | Add the `dynamicCode: { relayUrl, talkId }` block                                                          |
+| Block renders but no `●` badge in presenter mode                 | `?presenter=…` token not in URL, or transformer didn't fire                                             | Check the URL query; verify the block is rendered as `<DynamicCode>` in DevTools                          |
+| Badge shows `⚠` (red)                                            | Wrong presenter token                                                                                   | Re-check `wrangler secret put PRESENTER_TOKEN`; copy fresh URL                                            |
+| Badge shows `○` and never advances                               | Relay URL typo, Worker not deployed, or CORS issue                                                      | `curl -i https://YOUR-RELAY.workers.dev/sub?talk=test` should return HTTP 426                              |
+| Edits not propagating, badge is `●`                              | Audience window on stale cache, or different `talkId`                                                   | Hard-reload audience; verify both windows show identical block content on first load                      |
+| Edit appears on audience then disappears on refresh              | Origin hash mismatch — fenced source changed between presenter and audience builds                      | Confirm both presenter and audience are on the same deployment of the deck                                |
+| Block looks like plain text (no background/padding)              | Using slidev `< 52.15.0` — codeblocks transformer not supported                                         | Bump `@slidev/cli` to `^52.15.2`                                                                            |
+| Build error from slidev: `Import "/path" resolves outside fs.allow` | Unrelated — slidev 52.15's `slide-import-guard` flags absolute-path `<img src>` in markdown            | Switch to a runtime binding: `<img :src="`\${$slidev.configs.base ?? '/'}path\``" />`                       |
 
-## Reset and persistence
+## Architecture
 
-- Persistence is forever (in Durable Object SQLite). Edits survive Worker restarts and DO hibernation.
-- Reset paths: per-block (context menu, `Ctrl+Shift+R`) or whole-talk (admin route "Reset all").
-- The addon hashes the original fenced content at build time and includes it in the broadcast. If you redeploy with different fenced content, audience browsers ignore stale DO content for that block automatically.
+```
+                    ┌──────────────────────────────────────────┐
+                    │  Cloudflare Worker                       │
+                    │   slidev-dynamic-code-relay              │
+                    │    ─ /pub?talk=X&token=…  (presenter WS) │
+                    │    ─ /sub?talk=X          (audience WS)  │
+                    │  TalkDO (Durable Object, one per talkId) │
+                    │    ─ SQLite: blocks(id, hash, content)   │
+                    │    ─ WS hibernation API                  │
+                    └─────────────▲────────────────▲───────────┘
+                                  │                │
+            broadcasts            │                │  snapshot on connect
+            updates               │                │  + live updates
+                                  │                │
+                  ┌───────────────┴──────┐   ┌─────┴──────────────────────┐
+                  │ Presenter browser    │   │ Audience browser(s)        │
+                  │  ?presenter=TOKEN    │   │  (no query)                │
+                  │  <DynamicCode>       │   │  <DynamicCode>             │
+                  │   editable textarea  │   │   readonly                 │
+                  └──────────────────────┘   └────────────────────────────┘
+```
+
+- **Build time:** the addon's codeblock transformer matches `{dynamic id=…}` in the markdown info string, hashes the fenced source (first 12 hex of SHA-256), and emits a `<DynamicCode>` Vue component with the id, lang, origin-hash, and lz-string-compressed content as props.
+- **Runtime:** `setup/main.ts` registers the component globally, reads the `dynamicCode` block from slides frontmatter, detects mode from `?presenter=` URL param, opens one WebSocket per page (multiplexes all blocks), and provides a sync context via Vue's inject/provide.
+- **Component:** renders a shiki-highlighted `<pre>` (theme-aware) with a transparent textarea overlaid; broadcasts presenter edits debounced at 200 ms; falls back to fenced content if the WS message's hash doesn't match the compiled origin-hash (stale-state safety).
 
 ## Limitations
 
-- One presenter at a time. The relay treats every `/pub` socket as authoritative; no conflict resolution.
+- One presenter at a time. The Worker treats every `/pub` socket as authoritative; no conflict resolution.
 - Display only. The slide does not execute code. Run commands in your real terminal alongside the projector.
-- Single talk per relay instance is fine on the free tier; a few hundred audience devices is comfortable.
+- 32 KiB per block content (server enforced).
+- 200 distinct block ids per `talkId` (server enforced).
+- One Worker free-tier deploy comfortably handles a few hundred audience devices per talk.
 
 ## License
 
