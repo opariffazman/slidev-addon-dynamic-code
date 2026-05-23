@@ -331,7 +331,7 @@ describe('<DynamicCode> ranges prop (reveal state)', () => {
   it('textarea unlocks once revealIndex reaches the final ranges item', async () => {
     const cur = ref(0)
     const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
-    cur.value = 2  // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
+    cur.value = 2 // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
     await wrapper.vm.$nextTick()
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
@@ -399,6 +399,17 @@ describe('<DynamicCode> ranges prop (sync gating)', () => {
 })
 
 describe('<DynamicCode> ranges prop (highlight DOM)', () => {
+  async function waitForShikiLines(wrapper: any, timeoutMs = 2000) {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      if (wrapper.findAll('.dynamic-code-render pre.shiki code > .line').length > 0)
+        break
+      await new Promise(r => setTimeout(r, 20))
+    }
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick() // extra tick for highlight watchEffect post-flush
+  }
+
   async function mountAndWaitForShiki(cur: { value: number }, ranges: string[], code: string) {
     slidevMock.hook = () => ({
       $clicksContext: {
@@ -412,9 +423,8 @@ describe('<DynamicCode> ranges prop (highlight DOM)', () => {
       props: { id: 'demo', lang: 'bash', originHash: 'h', codeLz: lz.compressToBase64(code), ranges },
       global: { provide: provideStub({ mode: 'presenter' }) },
     })
-    // Shiki render is async + debounced 60ms. Drain microtasks + timers.
-    await new Promise(r => setTimeout(r, 120))
-    await wrapper.vm.$nextTick()
+    // Shiki render is async + debounced 60ms. Poll until .line spans appear.
+    await waitForShikiLines(wrapper)
     return wrapper
   }
 
@@ -431,7 +441,7 @@ describe('<DynamicCode> ranges prop (highlight DOM)', () => {
 
     // Advance to 'all' final state → no .highlighted, no .has-highlighted
     cur.value = 2
-    await wrapper.vm.$nextTick()
+    await waitForShikiLines(wrapper)
     const linesFinal = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
     for (const ln of linesFinal)
       expect(ln.classes()).not.toContain('highlighted')
