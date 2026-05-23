@@ -27,7 +27,7 @@ export function createDynamicCodeTransformer(): CodeblockTransformer {
       id: parsed.id,
       lang: parsed.lang,
       code: ctx.code,
-      extraMeta: parsed.extraMeta,
+      ranges: parsed.ranges,
     })
   }
 }
