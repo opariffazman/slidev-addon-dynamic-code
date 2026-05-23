@@ -1,7 +1,7 @@
 {
   "name": "slidev-addon-dynamic-code",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Slidev addon for live-editable code blocks during presentations",
   "author": "Opariff Azman",
   "license": "MIT",

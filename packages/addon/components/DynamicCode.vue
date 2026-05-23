@@ -162,7 +162,7 @@ const renderedHtml = computed(() => {
   height: 100%;
   background: transparent;
   color: transparent;
-  caret-color: var(--shiki-light);
+  caret-color: #000;
   border: none;
   outline: none;
   resize: none;
@@ -177,7 +177,7 @@ const renderedHtml = computed(() => {
   border-radius: inherit;
   transition: box-shadow 120ms ease, background-color 120ms ease;
 }
-html.dark .dynamic-code-textarea { caret-color: var(--shiki-dark); }
+html.dark .dynamic-code-textarea { caret-color: #fff; }
 .dynamic-code-textarea::selection { background: rgb(127 127 127 / 0.4); }
 .dynamic-code-textarea:focus:not([readonly]) {
   box-shadow: inset 0 0 0 2px rgb(from var(--slidev-controls-foreground, #60a5fa) r g b / 0.7);
