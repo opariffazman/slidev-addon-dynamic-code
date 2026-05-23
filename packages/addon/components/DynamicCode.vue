@@ -155,6 +155,22 @@ const renderedHtml = computed(() => {
 .dynamic-code-render :deep(pre.slidev-code) {
   margin: 0;
 }
+/* Force identical glyph metrics on the visible code and the overlaid
+   textarea so the caret stays under the character the user is typing.
+   Mirrors the pattern slidev's own ShikiEditor.vue uses. */
+.dynamic-code-render :deep(pre.slidev-code),
+.dynamic-code-render :deep(pre.slidev-code) :deep(code),
+.dynamic-code-render :deep(pre.slidev-code) :deep(span),
+.dynamic-code-textarea {
+  font-family: var(--slidev-code-font-family) !important;
+  font-size: var(--slidev-code-font-size) !important;
+  line-height: var(--slidev-code-line-height) !important;
+  font-feature-settings: normal !important;
+  font-variation-settings: normal !important;
+  letter-spacing: 0 !important;
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
 .dynamic-code-textarea {
   position: absolute;
   inset: 0;
@@ -166,9 +182,6 @@ const renderedHtml = computed(() => {
   border: none;
   outline: none;
   resize: none;
-  font-family: var(--slidev-code-font-family);
-  font-size: var(--slidev-code-font-size, inherit);
-  line-height: var(--slidev-code-line-height);
   padding: var(--slidev-code-padding);
   margin: 0;
   white-space: pre;
