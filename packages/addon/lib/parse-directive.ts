@@ -1,10 +1,12 @@
-const RE_OUTER = /^([\w'-]+)?\s*\{dynamic([^}]*)\}\s*(\{[^}]*\})?/
+import { parseRangeSteps } from './parse-ranges'
+
+const RE_OUTER = /^([\w'-]+)?\s*\{dynamic([^}]*)\}\s*(?:\{([^}]*)\})?/
 const RE_ID = /^\s+id=([\w-]+)\s*$/
 
 export interface DynamicDirective {
   lang: string
   id: string | null
-  extraMeta: string | null
+  ranges: string[] | null
 }
 
 export function parseDynamicDirective(info: string): DynamicDirective | null {
@@ -14,8 +16,19 @@ export function parseDynamicDirective(info: string): DynamicDirective | null {
   const match = trimmed.match(RE_OUTER)
   if (!match)
     return null
-  const [, lang = '', innerContent = '', extraMeta] = match
+  const [, lang = '', innerContent = '', extrasContent] = match
   const idMatch = innerContent.match(RE_ID)
   const id = idMatch ? idMatch[1]! : null
-  return { lang, id, extraMeta: extraMeta || null }
+
+  let ranges: string[] | null = null
+  if (extrasContent != null) {
+    ranges = parseRangeSteps(extrasContent)
+    if (ranges == null) {
+      console.warn(
+        `[dynamic-code] id="${id ?? '<missing>'}": ignored unsupported extras "{${extrasContent}}" — only line-highlight syntax {n|m|all} is supported on dynamic blocks in v0.2.0`,
+      )
+    }
+  }
+
+  return { lang, id, ranges }
 }
