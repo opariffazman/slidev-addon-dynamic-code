@@ -122,7 +122,7 @@ export function parseRangeSteps(s: string | null): string[] | null {
   if (!trimmed)
     return null
   const steps = trimmed.split('|').map(seg => seg.trim())
-  if (steps.length === 0 || steps.some(seg => seg === ''))
+  if (steps.length === 0 || steps.includes(''))
     return null
   for (const step of steps) {
     const tokens = step.split(',').map(t => t.trim())
@@ -808,7 +808,8 @@ const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
 let clicksInfo: { start: number, end: number } | null = null
 
 onMounted(() => {
-  if (!clicksCtx || !props.ranges?.length) return
+  if (!clicksCtx || !props.ranges?.length)
+    return
   clicksInfo = clicksCtx.calculateSince('+1', props.ranges.length - 1)
   clicksCtx.register(componentId, clicksInfo)
 })
@@ -872,7 +873,7 @@ describe('<DynamicCode> ranges prop (reveal state)', () => {
   it('textarea unlocks once revealIndex reaches the final ranges item', async () => {
     const cur = ref(0)
     const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
-    cur.value = 2  // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
+    cur.value = 2 // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
     await wrapper.vm.$nextTick()
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
@@ -899,14 +900,16 @@ In `packages/addon/components/DynamicCode.vue`, after the click-registration `on
 // 1-based index into `ranges` for the currently-displayed step. -1 means the
 // reveal pipeline is inactive (no ranges, or context unavailable).
 const revealIndex = computed(() => {
-  if (!props.ranges?.length || !clicksCtx || !clicksInfo) return -1
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo)
+    return -1
   return Math.max(0, clicksCtx.current - clicksInfo.start + 1)
 })
 
 // True while the user is still walking through reveal steps before the final
 // one. Unlocks editing once the final ranges item is displayed.
 const inReveal = computed(() => {
-  if (!props.ranges?.length || revealIndex.value < 0) return false
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return false
   return revealIndex.value < props.ranges.length - 1
 })
 
@@ -1028,9 +1031,12 @@ with:
 
 ```ts
 watch(liveContent, (val) => {
-  if (sync?.mode !== 'presenter') return
-  if (inReveal.value) return                  // suppress edits during reveal phase
-  if (val === incomingContent.value) return
+  if (sync?.mode !== 'presenter')
+    return
+  if (inReveal.value)
+    return // suppress edits during reveal phase
+  if (val === incomingContent.value)
+    return
   debouncedBroadcast(val)
 })
 ```
@@ -1126,11 +1132,14 @@ import { parseHighlightRange } from '../lib/parse-ranges'
 // Note: if `import` lines are already top-of-file, move this one up there.
 
 watchEffect(() => {
-  if (!highlightedHtml.value) return
+  if (!highlightedHtml.value)
+    return
   const wrapEl = wrapperRef.value
-  if (!wrapEl) return
+  if (!wrapEl)
+    return
   const pre = wrapEl.querySelector<HTMLElement>('.dynamic-code-render pre.shiki')
-  if (!pre) return
+  if (!pre)
+    return
 
   const { spec, hide } = currentRange.value
   // 'slidev-vclick-hidden' is Slidev's CSS class for v-click hide state

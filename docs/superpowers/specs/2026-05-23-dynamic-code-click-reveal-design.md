@@ -159,7 +159,7 @@ export function parseHighlightRange(spec: string, lineCount: number): Set<number
 export interface DynamicDirective {
   lang: string
   id: string | null
-  ranges: string[] | null   // replaces extraMeta
+  ranges: string[] | null // replaces extraMeta
 }
 ```
 
@@ -195,7 +195,7 @@ const props = defineProps<{
   lang: string
   originHash: string
   codeLz: string
-  ranges?: string[]   // NEW
+  ranges?: string[] // NEW
 }>()
 ```
 
@@ -217,10 +217,11 @@ Click registration (only if `ranges` present AND `clicksCtx` available):
 // the deck-wide block `id` prop (which IS persistent and used by the sync
 // layer).
 const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
-let clicksInfo: { start: number; end: number } | null = null
+let clicksInfo: { start: number, end: number } | null = null
 
 onMounted(() => {
-  if (!clicksCtx || !props.ranges?.length) return
+  if (!clicksCtx || !props.ranges?.length)
+    return
   clicksInfo = clicksCtx.calculateSince('+1', props.ranges.length - 1)
   clicksCtx.register(componentId, clicksInfo)
 })
@@ -237,7 +238,8 @@ Reveal computeds:
 // when ranges are absent or context unavailable (in which case the rest of
 // the reveal logic short-circuits).
 const revealIndex = computed(() => {
-  if (!props.ranges?.length || !clicksCtx || !clicksInfo) return -1
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo)
+    return -1
   return Math.max(0, clicksCtx.current - clicksInfo.start + 1)
 })
 
@@ -245,13 +247,14 @@ const revealIndex = computed(() => {
 // one. Unlocks editing once the final ranges item is displayed (NOT after — see
 // State machine section for rationale).
 const inReveal = computed(() => {
-  if (!props.ranges?.length || revealIndex.value < 0) return false
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return false
   return revealIndex.value < props.ranges.length - 1
 })
 
 // Returns the range string to apply at the current click step.
 // Handles "hide" fallthrough exactly like Slidev's CodeBlockWrapper.vue.
-const currentRange = computed<{ spec: string; hide: boolean }>(() => {
+const currentRange = computed<{ spec: string, hide: boolean }>(() => {
   if (!props.ranges?.length || revealIndex.value < 0)
     return { spec: 'all', hide: false }
   const clamped = Math.min(revealIndex.value, props.ranges.length - 1)
@@ -271,9 +274,12 @@ const readonly = computed(() =>
 )
 
 watch(liveContent, (val) => {
-  if (sync?.mode !== 'presenter') return
-  if (inReveal.value) return                    // NEW: defense in depth
-  if (val === incomingContent.value) return
+  if (sync?.mode !== 'presenter')
+    return
+  if (inReveal.value)
+    return // NEW: defense in depth
+  if (val === incomingContent.value)
+    return
   debouncedBroadcast(val)
 })
 ```
@@ -282,9 +288,11 @@ Highlight DOM apply:
 
 ```ts
 watchEffect(() => {
-  if (!highlightedHtml.value) return
+  if (!highlightedHtml.value)
+    return
   const pre = wrapperRef.value?.querySelector('.dynamic-code-render pre.shiki')
-  if (!pre) return
+  if (!pre)
+    return
 
   const { spec, hide } = currentRange.value
   const lines = Array.from(pre.querySelectorAll('code > .line'))

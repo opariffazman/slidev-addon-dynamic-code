@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseRangeSteps, parseHighlightRange } from '../lib/parse-ranges'
+import { parseHighlightRange, parseRangeSteps } from '../lib/parse-ranges'
 
 describe('parseRangeSteps', () => {
   it('returns null for null / empty / whitespace', () => {
