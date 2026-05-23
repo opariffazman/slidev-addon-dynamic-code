@@ -237,3 +237,67 @@ describe('<DynamicCode> ranges prop (graceful degrade)', () => {
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
 })
+
+describe('<DynamicCode> ranges prop (click registration)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('registers and unregisters click count when ranges + ctx are present', () => {
+    const register = vi.fn()
+    const unregister = vi.fn()
+    const calculateSince = vi.fn().mockReturnValue({ start: 1, end: 3 })
+
+    slidevMock.hook = () => ({
+      $clicksContext: { current: 0, register, unregister, calculateSince },
+    })
+
+    const wrapper = mount(DynamicCode, {
+      props: {
+        id: 'install',
+        lang: 'bash',
+        originHash: 'h',
+        codeLz,
+        ranges: ['2-3', '5', 'all'],
+      },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+
+    expect(calculateSince).toHaveBeenCalledWith('+1', 2)
+    expect(register).toHaveBeenCalledTimes(1)
+    const [regId, regInfo] = register.mock.calls[0]!
+    expect(typeof regId).toBe('string')
+    expect(regId).toMatch(/^dyn-/)
+    expect(regInfo).toEqual({ start: 1, end: 3 })
+
+    wrapper.unmount()
+    expect(unregister).toHaveBeenCalledWith(regId)
+  })
+
+  it('does not register when ranges is absent', () => {
+    const register = vi.fn()
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        current: 0,
+        register,
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 3 }),
+      },
+    })
+
+    mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  it('does not register when context is missing (graceful degrade)', () => {
+    // slidevMock.hook stays null from beforeEach
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges: ['1', '2'] },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // Just assert no crash and textarea is editable (no reveal active).
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+})

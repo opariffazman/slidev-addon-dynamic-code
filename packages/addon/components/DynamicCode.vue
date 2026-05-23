@@ -58,6 +58,26 @@ function onReset(): void {
 onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
 onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
 
+const clicksCtx: any = slideCtx?.$clicksContext ?? null
+
+// Per-mount unique id for $clicksContext bookkeeping. Crypto-random is fine —
+// no persistence across mounts, never reused within a session. Distinct from
+// the deck-wide block `id` prop (which IS persistent and used by the sync
+// layer).
+const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
+let clicksInfo: { start: number, end: number } | null = null
+
+onMounted(() => {
+  if (!clicksCtx || !props.ranges?.length) return
+  clicksInfo = clicksCtx.calculateSince('+1', props.ranges.length - 1)
+  clicksCtx.register(componentId, clicksInfo)
+})
+
+onUnmounted(() => {
+  if (clicksCtx && clicksInfo)
+    clicksCtx.unregister(componentId)
+})
+
 const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {
   copy(displayContent.value)
