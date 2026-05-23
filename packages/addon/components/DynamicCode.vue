@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
-import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch, watchEffect } from 'vue'
+import { parseHighlightRange } from '../lib/parse-ranges'
 import { tryUseSlideContext } from '../composables/use-slidev-context'
 import { syncKey } from './sync-key'
 
@@ -171,6 +172,28 @@ const renderedHtml = computed(() => {
     return highlightedHtml.value
   return `<pre class="shiki slidev-code"><code>${escapeHtml(displayContent.value)}</code></pre>`
 })
+
+watchEffect(() => {
+  if (!highlightedHtml.value) return
+  const wrapEl = wrapperRef.value
+  if (!wrapEl) return
+  const pre = wrapEl.querySelector<HTMLElement>('.dynamic-code-render pre.shiki')
+  if (!pre) return
+
+  const { spec, hide } = currentRange.value
+  // 'slidev-vclick-hidden' is Slidev's CSS class for v-click hide state
+  // (declared in @slidev/client/styles/code.css). Hardcoded on purpose — class
+  // names are user-facing API surface and more stable than module-internal
+  // exports.
+  wrapEl.classList.toggle('slidev-vclick-hidden', hide)
+
+  const lines = Array.from(pre.querySelectorAll<HTMLElement>('code > .line'))
+  const hl = parseHighlightRange(spec, lines.length)
+  lines.forEach((el, i) => {
+    el.classList.toggle('highlighted', hl.has(i + 1))
+  })
+  pre.classList.toggle('has-highlighted', hl.size > 0 && hl.size < lines.length)
+}, { flush: 'post' })
 </script>
 
 <template>

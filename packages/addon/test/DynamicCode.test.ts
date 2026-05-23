@@ -397,3 +397,54 @@ describe('<DynamicCode> ranges prop (sync gating)', () => {
     }
   })
 })
+
+describe('<DynamicCode> ranges prop (highlight DOM)', () => {
+  async function mountAndWaitForShiki(cur: { value: number }, ranges: string[], code: string) {
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        get current() { return cur.value },
+        register: vi.fn(),
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 1 + (ranges.length - 1) }),
+      },
+    })
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'demo', lang: 'bash', originHash: 'h', codeLz: lz.compressToBase64(code), ranges },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // Shiki render is async + debounced 60ms. Drain microtasks + timers.
+    await new Promise(r => setTimeout(r, 120))
+    await wrapper.vm.$nextTick()
+    return wrapper
+  }
+
+  it('applies .highlighted to the lines for the current step and .has-highlighted to <pre>', async () => {
+    const cur = ref(0)
+    const wrapper = await mountAndWaitForShiki(cur, ['2-3', '5', 'all'], 'a\nb\nc\nd\ne')
+    const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    // revealIndex = 0 → spec "2-3" → lines 2 and 3 highlighted (1-based)
+    expect(lines[1]!.classes()).toContain('highlighted')
+    expect(lines[2]!.classes()).toContain('highlighted')
+    expect(lines[0]!.classes()).not.toContain('highlighted')
+    expect(lines[3]!.classes()).not.toContain('highlighted')
+    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).toContain('has-highlighted')
+
+    // Advance to 'all' final state → no .highlighted, no .has-highlighted
+    cur.value = 2
+    await wrapper.vm.$nextTick()
+    const linesFinal = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    for (const ln of linesFinal)
+      expect(ln.classes()).not.toContain('highlighted')
+    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).not.toContain('has-highlighted')
+  })
+
+  it('applies the slidev-vclick-hidden class on hide step and uses the NEXT spec for highlight', async () => {
+    const cur = ref(0)
+    const wrapper = await mountAndWaitForShiki(cur, ['hide', '2-3', 'all'], 'a\nb\nc\nd')
+    // revealIndex 0 = 'hide' → wrapper gets slidev-vclick-hidden; highlight uses '2-3'
+    expect(wrapper.find('.dynamic-code-wrapper').classes()).toContain('slidev-vclick-hidden')
+    const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    expect(lines[1]!.classes()).toContain('highlighted')
+    expect(lines[2]!.classes()).toContain('highlighted')
+  })
+})
