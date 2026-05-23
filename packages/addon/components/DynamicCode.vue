@@ -71,11 +71,46 @@ const statusGlyph = computed(() => {
     default: return '○'
   }
 })
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+const highlightedHtml = ref<string>('')
+
+async function refreshHighlight(code: string, lang: string): Promise<void> {
+  try {
+    const { codeToHtml } = await import('shiki')
+    highlightedHtml.value = await codeToHtml(code, {
+      lang,
+      themes: { light: 'vitesse-light', dark: 'vitesse-dark' },
+      defaultColor: false,
+    })
+  }
+  catch {
+    highlightedHtml.value = ''
+  }
+}
+
+const debouncedHighlight = useDebounceFn(
+  (code: string) => refreshHighlight(code, props.lang),
+  60,
+)
+
+watch(displayContent, (c) => {
+  void debouncedHighlight(c)
+}, { immediate: true })
+
+const renderedHtml = computed(() => {
+  if (highlightedHtml.value)
+    return highlightedHtml.value
+  return `<pre class="dynamic-code-plain"><code>${escapeHtml(displayContent.value)}</code></pre>`
+})
 </script>
 
 <template>
   <div ref="wrapperRef" class="dynamic-code-wrapper group">
-    <pre class="dynamic-code-pre"><code>{{ displayContent }}</code></pre>
+    <div class="dynamic-code-render" v-html="renderedHtml" />
     <textarea
       v-model="liveContent"
       class="dynamic-code-textarea"
@@ -104,38 +139,51 @@ const statusGlyph = computed(() => {
 <style>
 .dynamic-code-wrapper {
   position: relative;
-  font-family: var(--slidev-code-font-family, monospace);
-  background: var(--slidev-code-background, #1e1e1e);
-  color: var(--slidev-code-color, #e4e4e7);
-  padding: var(--slidev-code-padding, 0.75em);
-  border-radius: var(--slidev-code-radius, 4px);
+  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  border-radius: var(--slidev-code-radius, 6px);
   margin: var(--slidev-code-margin, 0.5em 0);
   line-height: 1.5;
+  overflow: hidden;
 }
-.dynamic-code-pre {
+.dynamic-code-render :deep(pre.shiki),
+.dynamic-code-render pre.dynamic-code-plain {
   margin: 0;
+  padding: var(--slidev-code-padding, 0.75em 1em);
   white-space: pre;
+  overflow-x: auto;
+}
+.dynamic-code-render pre.dynamic-code-plain {
+  background: var(--slidev-code-background, transparent);
+  color: var(--slidev-code-color, inherit);
 }
 .dynamic-code-textarea {
   position: absolute;
-  inset: var(--slidev-code-padding, 0.75em);
-  width: calc(100% - 2 * var(--slidev-code-padding, 0.75em));
-  height: calc(100% - 2 * var(--slidev-code-padding, 0.75em));
+  inset: 0;
+  width: 100%;
+  height: 100%;
   background: transparent;
   color: transparent;
-  caret-color: currentColor;
+  caret-color: #000;
   border: none;
   outline: none;
   resize: none;
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  padding: 0;
+  padding: var(--slidev-code-padding, 0.75em 1em);
   margin: 0;
   white-space: pre;
   overflow: hidden;
+  box-sizing: border-box;
+  border-radius: inherit;
+  transition: box-shadow 120ms ease, background-color 120ms ease;
 }
+html.dark .dynamic-code-textarea { caret-color: #fff; }
 .dynamic-code-textarea::selection { background: rgba(127, 127, 127, 0.4); }
+.dynamic-code-textarea:focus:not([readonly]) {
+  box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.7);
+  background-color: rgba(96, 165, 250, 0.06);
+}
 .dynamic-code-copy {
   position: absolute;
   top: 0.25em;
@@ -147,6 +195,7 @@ const statusGlyph = computed(() => {
   cursor: pointer;
   opacity: 0;
   transition: opacity 120ms;
+  z-index: 2;
 }
 .dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.6; }
 .dynamic-code-copy:hover { opacity: 1 !important; }
@@ -157,6 +206,8 @@ const statusGlyph = computed(() => {
   font-size: 0.9em;
   opacity: 0.7;
   user-select: none;
+  z-index: 2;
+  pointer-events: none;
 }
 .dynamic-code-badge[data-status="rejected"] { color: #ef4444; }
 .dynamic-code-badge[data-status="offline"]  { color: #f59e0b; }
