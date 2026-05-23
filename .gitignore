@@ -153,3 +153,8 @@ packages/relay/.dev.vars
 dist/
 # OS
 .DS_Store
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+e2e/.playwright/

@@ -40,13 +40,13 @@ const clicksCtx: any = slideCtx?.$clicksContext ?? null
 // the deck-wide block `id` prop (which IS persistent and used by the sync
 // layer).
 const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
-// Calculate synchronously in setup so revealIndex computed has clicksInfo
-// on first render. Register in onMounted per Slidev convention.
-const clicksInfo = shallowRef<{ start: number, end: number } | null>(
-  (clicksCtx && props.ranges?.length)
-    ? clicksCtx.calculateSince('+1', props.ranges.length - 1)
-    : null,
-)
+// calculateSince + register both happen in onMounted (matches Slidev's own
+// CodeBlockWrapper convention) so we don't depend on undocumented setup-time
+// behavior of $clicksContext. Tradeoff: clicksInfo is null on the very first
+// render frame, which means inReveal is false then — a single-frame editable
+// flash for ranges blocks during the setup→onMounted window. Acceptable: by
+// the time a user can interact, onMounted has long since fired.
+const clicksInfo = shallowRef<{ start: number, end: number } | null>(null)
 
 // 1-based index into `ranges` for the currently-displayed step. -1 means the
 // reveal pipeline is inactive (no ranges, or context unavailable).
@@ -94,8 +94,9 @@ onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset
 onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
 
 onMounted(() => {
-  if (!clicksCtx || !clicksInfo.value)
+  if (!clicksCtx || !props.ranges?.length)
     return
+  clicksInfo.value = clicksCtx.calculateSince('+1', props.ranges.length - 1)
   clicksCtx.register(componentId, clicksInfo.value)
 })
 

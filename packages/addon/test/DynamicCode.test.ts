@@ -321,9 +321,13 @@ describe('<DynamicCode> ranges prop (reveal state)', () => {
     })
   }
 
-  it('textarea is read-only at slide entry (revealIndex 0)', () => {
+  it('textarea is read-only at slide entry (revealIndex 0)', async () => {
     const cur = ref(0)
     const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
+    // calculateSince now runs in onMounted (matches Slidev's CodeBlockWrapper
+    // convention), so clicksInfo is null on first render and inReveal flips
+    // true after the post-mount reactive flush. Await one tick.
+    await wrapper.vm.$nextTick()
     // current=0 → revealIndex = max(0, 0 - 1 + 1) = 0; ranges.length-1 = 2; inReveal true
     expect(wrapper.find('textarea').attributes('readonly')).toBeDefined()
   })
