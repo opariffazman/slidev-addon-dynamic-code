@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { tryUseSlideContext } from '../composables/use-slidev-context'
 import { syncKey } from './sync-key'
 
@@ -46,8 +46,6 @@ watch(liveContent, (val) => {
     debouncedBroadcast(val)
 })
 
-const readonly = computed(() => sync?.mode !== 'presenter')
-
 const wrapperRef = ref<HTMLElement | null>(null)
 function onReset(): void {
   if (sync?.mode !== 'presenter')
@@ -65,18 +63,53 @@ const clicksCtx: any = slideCtx?.$clicksContext ?? null
 // the deck-wide block `id` prop (which IS persistent and used by the sync
 // layer).
 const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
-let clicksInfo: { start: number, end: number } | null = null
+// Calculate synchronously in setup so revealIndex computed has clicksInfo
+// on first render. Register in onMounted per Slidev convention.
+const clicksInfo = shallowRef<{ start: number, end: number } | null>(
+  (clicksCtx && props.ranges?.length)
+    ? clicksCtx.calculateSince('+1', props.ranges.length - 1)
+    : null,
+)
 
 onMounted(() => {
-  if (!clicksCtx || !props.ranges?.length) return
-  clicksInfo = clicksCtx.calculateSince('+1', props.ranges.length - 1)
-  clicksCtx.register(componentId, clicksInfo)
+  if (!clicksCtx || !clicksInfo.value) return
+  clicksCtx.register(componentId, clicksInfo.value)
 })
 
 onUnmounted(() => {
-  if (clicksCtx && clicksInfo)
+  if (clicksCtx && clicksInfo.value)
     clicksCtx.unregister(componentId)
 })
+
+// 1-based index into `ranges` for the currently-displayed step. -1 means the
+// reveal pipeline is inactive (no ranges, or context unavailable).
+const revealIndex = computed(() => {
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo.value) return -1
+  return Math.max(0, clicksCtx.current - clicksInfo.value.start + 1)
+})
+
+// True while the user is still walking through reveal steps before the final
+// one. Unlocks editing once the final ranges item is displayed.
+const inReveal = computed(() => {
+  if (!props.ranges?.length || revealIndex.value < 0) return false
+  return revealIndex.value < props.ranges.length - 1
+})
+
+// Returns the highlight spec to apply at the current step, handling Slidev's
+// "hide" fallthrough convention (hide step uses the NEXT range for highlight
+// and asks the wrapper to take on the v-click-hidden class).
+const currentRange = computed<{ spec: string, hide: boolean }>(() => {
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return { spec: 'all', hide: false }
+  const clamped = Math.min(revealIndex.value, props.ranges.length - 1)
+  let spec = props.ranges[clamped]!
+  const hide = spec === 'hide'
+  if (hide)
+    spec = props.ranges[clamped + 1] ?? props.ranges.at(-1)!
+  return { spec, hide }
+})
+
+const readonly = computed(() => sync?.mode !== 'presenter' || inReveal.value)
 
 const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {

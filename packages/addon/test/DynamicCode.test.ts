@@ -301,3 +301,45 @@ describe('<DynamicCode> ranges prop (click registration)', () => {
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
 })
+
+describe('<DynamicCode> ranges prop (reveal state)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  function mountWithClicks(cur: { value: number }, ranges: string[]) {
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        get current() { return cur.value },
+        register: vi.fn(),
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 1 + (ranges.length - 1) }),
+      },
+    })
+    return mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+  }
+
+  it('textarea is read-only at slide entry (revealIndex 0)', () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
+    // current=0 → revealIndex = max(0, 0 - 1 + 1) = 0; ranges.length-1 = 2; inReveal true
+    expect(wrapper.find('textarea').attributes('readonly')).toBeDefined()
+  })
+
+  it('textarea unlocks once revealIndex reaches the final ranges item', async () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
+    cur.value = 2  // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+
+  it('unlocks immediately when ranges has a single item', () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['1'])
+    // ranges.length=1 → end=1+0=1; revealIndex=0; ranges.length-1=0; inReveal = 0 < 0 → false
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+})
