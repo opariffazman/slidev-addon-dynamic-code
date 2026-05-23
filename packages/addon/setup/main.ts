@@ -1,7 +1,5 @@
-// @ts-expect-error -- virtual module provided by Slidev at runtime
-import { configs } from '#slidev/configs'
+import configs from '#slidev/configs'
 import { defineAppSetup } from '@slidev/types'
-import { provide as vueProvide } from 'vue'
 import DynamicCode from '../components/DynamicCode.vue'
 import { syncKey } from '../components/sync-key'
 import { detectModeFromLocation, provideSync } from '../composables/useSync'
@@ -10,7 +8,7 @@ import { resolveAddonConfig } from '../lib/read-config'
 export default defineAppSetup(({ app }) => {
   app.component('DynamicCode', DynamicCode)
 
-  const cfg = resolveAddonConfig(configs)
+  const cfg = resolveAddonConfig(configs as unknown as Record<string, unknown>)
   const { mode, token } = detectModeFromLocation(typeof window !== 'undefined' ? window.location.search : '')
 
   const ctx = provideSync({ relayUrl: cfg.relayUrl, talkId: cfg.talkId, mode, token })
@@ -24,7 +22,4 @@ export default defineAppSetup(({ app }) => {
     broadcastReset: (id: string) => ctx.client.broadcastReset(id),
     broadcastResetAll: () => ctx.client.broadcastResetAll(),
   })
-
-  // Reference vueProvide to keep TS satisfied if not used elsewhere; harmless.
-  void vueProvide
 })
