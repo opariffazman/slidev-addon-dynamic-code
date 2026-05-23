@@ -2,6 +2,7 @@
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import { tryUseSlideContext } from '../composables/use-slidev-context'
 import { syncKey } from './sync-key'
 
 const props = defineProps<{
@@ -9,9 +10,11 @@ const props = defineProps<{
   lang: string
   originHash: string
   codeLz: string
+  ranges?: string[]
 }>()
 
 const sync = inject(syncKey, null)
+const slideCtx = tryUseSlideContext()
 
 const fenced = lz.decompressFromBase64(props.codeLz)
 const liveContent = ref(fenced)

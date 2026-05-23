@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vitest/globals", "happy-dom"]
+    "types": ["vitest/globals", "happy-dom"],
+    "paths": {
+      "@slidev/client": ["./composables/slidev-client-stub.d.ts"]
+    }
   },
   "include": ["env.d.ts", "index.ts", "setup/**/*.ts", "components/**/*.vue", "composables/**/*.ts", "lib/**/*.ts", "test/**/*.ts"]
 }

@@ -59,6 +59,7 @@
     "lz-string": "^1.5.0"
   },
   "devDependencies": {
+    "@slidev/client": "^52.15.2",
     "@slidev/types": "^52.15.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.6",

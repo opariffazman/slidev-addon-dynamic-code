@@ -1,9 +1,25 @@
 import { mount } from '@vue/test-utils'
 import lz from 'lz-string'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import DynamicCode from '../components/DynamicCode.vue'
 import { syncKey } from '../components/sync-key'
+
+// Hoisted mock state for the Slidev context helper. Tests mutate `slidevMock`
+// before mounting; vi.mock returns a function that reads the current value.
+const slidevMock = vi.hoisted(() => ({
+  // Mutable reference the mock factory will read at call time.
+  hook: null as null | (() => { $clicksContext?: any } | null),
+}))
+
+vi.mock('../composables/use-slidev-context', () => ({
+  tryUseSlideContext: () => slidevMock.hook ? slidevMock.hook() : null,
+}))
+
+beforeEach(() => {
+  // Default to "no Slidev context" — graceful-degrade path.
+  slidevMock.hook = null
+})
 
 function provideStub(overrides: Partial<{
   mode: 'presenter' | 'audience'
@@ -198,5 +214,26 @@ describe('<DynamicCode>', () => {
     await wrapper.vm.$nextTick()
 
     expect(broadcastReset).toHaveBeenCalledWith('install')
+  })
+})
+
+describe('<DynamicCode> ranges prop (graceful degrade)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('renders with a ranges prop even when no Slidev context is available', () => {
+    // slidevMock.hook is null from beforeEach → tryUseSlideContext returns null
+    const wrapper = mount(DynamicCode, {
+      props: {
+        id: 'install',
+        lang: 'bash',
+        originHash: 'h',
+        codeLz,
+        ranges: ['2-3', '5', 'all'],
+      },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // No context → no reveal pipeline → presenter textarea editable immediately
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
 })
