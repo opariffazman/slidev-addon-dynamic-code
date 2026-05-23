@@ -1,9 +1,25 @@
 import { mount } from '@vue/test-utils'
 import lz from 'lz-string'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import DynamicCode from '../components/DynamicCode.vue'
 import { syncKey } from '../components/sync-key'
+
+// Hoisted mock state for the Slidev context helper. Tests mutate `slidevMock`
+// before mounting; vi.mock returns a function that reads the current value.
+const slidevMock = vi.hoisted(() => ({
+  // Mutable reference the mock factory will read at call time.
+  hook: null as null | (() => { $clicksContext?: any } | null),
+}))
+
+vi.mock('../composables/use-slidev-context', () => ({
+  tryUseSlideContext: () => slidevMock.hook ? slidevMock.hook() : null,
+}))
+
+beforeEach(() => {
+  // Default to "no Slidev context" — graceful-degrade path.
+  slidevMock.hook = null
+})
 
 function provideStub(overrides: Partial<{
   mode: 'presenter' | 'audience'
@@ -198,5 +214,251 @@ describe('<DynamicCode>', () => {
     await wrapper.vm.$nextTick()
 
     expect(broadcastReset).toHaveBeenCalledWith('install')
+  })
+})
+
+describe('<DynamicCode> ranges prop (graceful degrade)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('renders with a ranges prop even when no Slidev context is available', () => {
+    // slidevMock.hook is null from beforeEach → tryUseSlideContext returns null
+    const wrapper = mount(DynamicCode, {
+      props: {
+        id: 'install',
+        lang: 'bash',
+        originHash: 'h',
+        codeLz,
+        ranges: ['2-3', '5', 'all'],
+      },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // No context → no reveal pipeline → presenter textarea editable immediately
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+})
+
+describe('<DynamicCode> ranges prop (click registration)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('registers and unregisters click count when ranges + ctx are present', () => {
+    const register = vi.fn()
+    const unregister = vi.fn()
+    const calculateSince = vi.fn().mockReturnValue({ start: 1, end: 3 })
+
+    slidevMock.hook = () => ({
+      $clicksContext: { current: 0, register, unregister, calculateSince },
+    })
+
+    const wrapper = mount(DynamicCode, {
+      props: {
+        id: 'install',
+        lang: 'bash',
+        originHash: 'h',
+        codeLz,
+        ranges: ['2-3', '5', 'all'],
+      },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+
+    expect(calculateSince).toHaveBeenCalledWith('+1', 2)
+    expect(register).toHaveBeenCalledTimes(1)
+    const [regId, regInfo] = register.mock.calls[0]!
+    expect(typeof regId).toBe('string')
+    expect(regId).toMatch(/^dyn-/)
+    expect(regInfo).toEqual({ start: 1, end: 3 })
+
+    wrapper.unmount()
+    expect(unregister).toHaveBeenCalledWith(regId)
+  })
+
+  it('does not register when ranges is absent', () => {
+    const register = vi.fn()
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        current: 0,
+        register,
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 3 }),
+      },
+    })
+
+    mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  it('does not register when context is missing (graceful degrade)', () => {
+    // slidevMock.hook stays null from beforeEach
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges: ['1', '2'] },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // Just assert no crash and textarea is editable (no reveal active).
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+})
+
+describe('<DynamicCode> ranges prop (reveal state)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  function mountWithClicks(cur: { value: number }, ranges: string[]) {
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        get current() { return cur.value },
+        register: vi.fn(),
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 1 + (ranges.length - 1) }),
+      },
+    })
+    return mount(DynamicCode, {
+      props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+  }
+
+  it('textarea is read-only at slide entry (revealIndex 0)', async () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
+    // calculateSince now runs in onMounted (matches Slidev's CodeBlockWrapper
+    // convention), so clicksInfo is null on first render and inReveal flips
+    // true after the post-mount reactive flush. Await one tick.
+    await wrapper.vm.$nextTick()
+    // current=0 → revealIndex = max(0, 0 - 1 + 1) = 0; ranges.length-1 = 2; inReveal true
+    expect(wrapper.find('textarea').attributes('readonly')).toBeDefined()
+  })
+
+  it('textarea unlocks once revealIndex reaches the final ranges item', async () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['2-3', '5', 'all'])
+    cur.value = 2 // revealIndex = max(0, 2-1+1) = 2 = ranges.length-1 → inReveal false
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+
+  it('unlocks immediately when ranges has a single item', () => {
+    const cur = ref(0)
+    const wrapper = mountWithClicks(cur, ['1'])
+    // ranges.length=1 → end=1+0=1; revealIndex=0; ranges.length-1=0; inReveal = 0 < 0 → false
+    expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
+  })
+})
+
+describe('<DynamicCode> ranges prop (sync gating)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('does NOT call broadcastEdit while inReveal is true', async () => {
+    vi.useFakeTimers()
+    try {
+      const cur = ref(0)
+      const broadcastEdit = vi.fn()
+      slidevMock.hook = () => ({
+        $clicksContext: {
+          get current() { return cur.value },
+          register: vi.fn(),
+          unregister: vi.fn(),
+          calculateSince: () => ({ start: 1, end: 3 }),
+        },
+      })
+
+      const wrapper = mount(DynamicCode, {
+        props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges: ['2-3', '5', 'all'] },
+        global: {
+          provide: {
+            [syncKey as symbol]: {
+              mode: 'presenter',
+              state: ref({}),
+              status: ref('connected'),
+              broadcastEdit,
+              broadcastReset: () => {},
+              broadcastResetAll: () => {},
+            },
+          },
+        },
+      })
+
+      // Drive a content change via setValue — even though the textarea is
+      // [readonly] during reveal, setValue bypasses the DOM check and fires
+      // the input event. We're testing the broadcast guard, not the DOM gate.
+      await wrapper.find('textarea').setValue('forced change during reveal')
+      vi.advanceTimersByTime(500)
+      expect(broadcastEdit).not.toHaveBeenCalled()
+
+      // Advance to final reveal item, then change content again
+      cur.value = 2
+      await wrapper.vm.$nextTick()
+      await wrapper.find('textarea').setValue('edit after reveal')
+      vi.advanceTimersByTime(500)
+      expect(broadcastEdit).toHaveBeenCalledWith('install', 'h', 'edit after reveal')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('<DynamicCode> ranges prop (highlight DOM)', () => {
+  async function waitForShikiLines(wrapper: any, timeoutMs = 2000) {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      if (wrapper.findAll('.dynamic-code-render pre.shiki code > .line').length > 0)
+        break
+      await new Promise(r => setTimeout(r, 20))
+    }
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick() // extra tick for highlight watchEffect post-flush
+  }
+
+  async function mountAndWaitForShiki(cur: { value: number }, ranges: string[], code: string) {
+    slidevMock.hook = () => ({
+      $clicksContext: {
+        get current() { return cur.value },
+        register: vi.fn(),
+        unregister: vi.fn(),
+        calculateSince: () => ({ start: 1, end: 1 + (ranges.length - 1) }),
+      },
+    })
+    const wrapper = mount(DynamicCode, {
+      props: { id: 'demo', lang: 'bash', originHash: 'h', codeLz: lz.compressToBase64(code), ranges },
+      global: { provide: provideStub({ mode: 'presenter' }) },
+    })
+    // Shiki render is async + debounced 60ms. Poll until .line spans appear.
+    await waitForShikiLines(wrapper)
+    return wrapper
+  }
+
+  it('applies .highlighted to the lines for the current step and .has-highlighted to <pre>', async () => {
+    const cur = ref(0)
+    const wrapper = await mountAndWaitForShiki(cur, ['2-3', '5', 'all'], 'a\nb\nc\nd\ne')
+    const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    // revealIndex = 0 → spec "2-3" → lines 2 and 3 highlighted (1-based)
+    expect(lines[1]!.classes()).toContain('highlighted')
+    expect(lines[2]!.classes()).toContain('highlighted')
+    expect(lines[0]!.classes()).not.toContain('highlighted')
+    expect(lines[3]!.classes()).not.toContain('highlighted')
+    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).toContain('has-highlighted')
+
+    // Advance to 'all' final state → no .highlighted, no .has-highlighted
+    cur.value = 2
+    await waitForShikiLines(wrapper)
+    const linesFinal = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    for (const ln of linesFinal)
+      expect(ln.classes()).not.toContain('highlighted')
+    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).not.toContain('has-highlighted')
+  })
+
+  it('applies the slidev-vclick-hidden class on hide step and uses the NEXT spec for highlight', async () => {
+    const cur = ref(0)
+    const wrapper = await mountAndWaitForShiki(cur, ['hide', '2-3', 'all'], 'a\nb\nc\nd')
+    // revealIndex 0 = 'hide' → wrapper gets slidev-vclick-hidden; highlight uses '2-3'
+    expect(wrapper.find('.dynamic-code-wrapper').classes()).toContain('slidev-vclick-hidden')
+    const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
+    expect(lines[1]!.classes()).toContain('highlighted')
+    expect(lines[2]!.classes()).toContain('highlighted')
   })
 })

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch, watchEffect } from 'vue'
+import { tryUseSlideContext } from '../composables/use-slidev-context'
+import { parseHighlightRange } from '../lib/parse-ranges'
 import { syncKey } from './sync-key'
 
 const props = defineProps<{
@@ -9,9 +11,11 @@ const props = defineProps<{
   lang: string
   originHash: string
   codeLz: string
+  ranges?: string[]
 }>()
 
 const sync = inject(syncKey, null)
+const slideCtx = tryUseSlideContext()
 
 const fenced = lz.decompressFromBase64(props.codeLz)
 const liveContent = ref(fenced)
@@ -29,6 +33,37 @@ const incomingContent = computed<string | null>(() => {
 
 const displayContent = computed(() => incomingContent.value ?? liveContent.value)
 
+const clicksCtx: any = slideCtx?.$clicksContext ?? null
+
+// Per-mount unique id for $clicksContext bookkeeping. Crypto-random is fine —
+// no persistence across mounts, never reused within a session. Distinct from
+// the deck-wide block `id` prop (which IS persistent and used by the sync
+// layer).
+const componentId = `dyn-${Math.random().toString(36).slice(2, 10)}`
+// calculateSince + register both happen in onMounted (matches Slidev's own
+// CodeBlockWrapper convention) so we don't depend on undocumented setup-time
+// behavior of $clicksContext. Tradeoff: clicksInfo is null on the very first
+// render frame, which means inReveal is false then — a single-frame editable
+// flash for ranges blocks during the setup→onMounted window. Acceptable: by
+// the time a user can interact, onMounted has long since fired.
+const clicksInfo = shallowRef<{ start: number, end: number } | null>(null)
+
+// 1-based index into `ranges` for the currently-displayed step. -1 means the
+// reveal pipeline is inactive (no ranges, or context unavailable).
+const revealIndex = computed(() => {
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo.value)
+    return -1
+  return Math.max(0, clicksCtx.current - clicksInfo.value.start + 1)
+})
+
+// True while the user is still walking through reveal steps before the final
+// one. Unlocks editing once the final ranges item is displayed.
+const inReveal = computed(() => {
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return false
+  return revealIndex.value < props.ranges.length - 1
+})
+
 const debouncedBroadcast = useDebounceFn((value: string) => {
   sync?.broadcastEdit(props.id, props.originHash, value)
 }, 200)
@@ -39,11 +74,14 @@ watch(incomingContent, (val) => {
 })
 
 watch(liveContent, (val) => {
-  if (sync?.mode === 'presenter' && val !== incomingContent.value)
-    debouncedBroadcast(val)
+  if (sync?.mode !== 'presenter')
+    return
+  if (inReveal.value)
+    return // suppress edits during reveal phase
+  if (val === incomingContent.value)
+    return
+  debouncedBroadcast(val)
 })
-
-const readonly = computed(() => sync?.mode !== 'presenter')
 
 const wrapperRef = ref<HTMLElement | null>(null)
 function onReset(): void {
@@ -54,6 +92,34 @@ function onReset(): void {
 }
 onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
 onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
+
+onMounted(() => {
+  if (!clicksCtx || !props.ranges?.length)
+    return
+  clicksInfo.value = clicksCtx.calculateSince('+1', props.ranges.length - 1)
+  clicksCtx.register(componentId, clicksInfo.value)
+})
+
+onUnmounted(() => {
+  if (clicksCtx && clicksInfo.value)
+    clicksCtx.unregister(componentId)
+})
+
+// Returns the highlight spec to apply at the current step, handling Slidev's
+// "hide" fallthrough convention (hide step uses the NEXT range for highlight
+// and asks the wrapper to take on the v-click-hidden class).
+const currentRange = computed<{ spec: string, hide: boolean }>(() => {
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return { spec: 'all', hide: false }
+  const clamped = Math.min(revealIndex.value, props.ranges.length - 1)
+  let spec = props.ranges[clamped]!
+  const hide = spec === 'hide'
+  if (hide)
+    spec = props.ranges[clamped + 1] ?? props.ranges.at(-1)!
+  return { spec, hide }
+})
+
+const readonly = computed(() => sync?.mode !== 'presenter' || inReveal.value)
 
 const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {
@@ -113,6 +179,31 @@ const renderedHtml = computed(() => {
     return highlightedHtml.value
   return `<pre class="shiki slidev-code"><code>${escapeHtml(displayContent.value)}</code></pre>`
 })
+
+watchEffect(() => {
+  if (!highlightedHtml.value)
+    return
+  const wrapEl = wrapperRef.value
+  if (!wrapEl)
+    return
+  const pre = wrapEl.querySelector<HTMLElement>('.dynamic-code-render pre.shiki')
+  if (!pre)
+    return
+
+  const { spec, hide } = currentRange.value
+  // 'slidev-vclick-hidden' is Slidev's CSS class for v-click hide state
+  // (declared in @slidev/client/styles/code.css). Hardcoded on purpose — class
+  // names are user-facing API surface and more stable than module-internal
+  // exports.
+  wrapEl.classList.toggle('slidev-vclick-hidden', hide)
+
+  const lines = Array.from(pre.querySelectorAll<HTMLElement>('code > .line'))
+  const hl = parseHighlightRange(spec, lines.length)
+  lines.forEach((el, i) => {
+    el.classList.toggle('highlighted', hl.has(i + 1))
+  })
+  pre.classList.toggle('has-highlighted', hl.size > 0 && hl.size < lines.length)
+}, { flush: 'post' })
 </script>
 
 <template>

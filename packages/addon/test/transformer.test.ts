@@ -45,6 +45,27 @@ describe('dynamic-code transformer', () => {
     expect(result).toContain('id="install"')
   })
 
+  it('threads parsed line-highlight ranges into the emitted :ranges attribute', async () => {
+    resetRegistryForTesting()
+    const t = createDynamicCodeTransformer()
+    const result = await t(makeCtx({
+      info: 'bash {dynamic id=walkthrough} {2-3|5|all}',
+      code: 'echo a\necho b\necho c\necho d\necho e',
+    }))
+    expect(result).toContain('<DynamicCode')
+    expect(result).toContain('id="walkthrough"')
+    expect(result).toContain(`:ranges='["2-3","5","all"]'`)
+    expect(result).not.toContain('v-bind')
+  })
+
+  it('omits the :ranges attribute when no second brace group is present', async () => {
+    resetRegistryForTesting()
+    const t = createDynamicCodeTransformer()
+    const result = await t(makeCtx({ info: 'bash {dynamic id=install}', code: 'echo' }))
+    expect(result).not.toContain(':ranges')
+    expect(result).not.toContain('v-bind')
+  })
+
   it('throws when id is missing', async () => {
     resetRegistryForTesting()
     const t = createDynamicCodeTransformer()

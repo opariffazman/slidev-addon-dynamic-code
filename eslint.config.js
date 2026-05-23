@@ -9,5 +9,6 @@ export default antfu({
   ignores: [
     'packages/*/dist',
     '**/.wrangler/**',
+    'docs/**',
   ],
 })

@@ -5,7 +5,7 @@ export interface EmitInput {
   id: string
   lang: string
   code: string
-  extraMeta: string | null
+  ranges: string[] | null
 }
 
 function escapeAttr(s: string): string {
@@ -15,8 +15,8 @@ function escapeAttr(s: string): string {
 export async function emitDynamicCode(input: EmitInput): Promise<string> {
   const hash = await originHash(input.code)
   const encoded = lz.compressToBase64(input.code)
-  const meta = input.extraMeta
-    ? ` v-bind="${input.extraMeta.replace(/"/g, '\\"')}"`
+  const rangesAttr = input.ranges?.length
+    ? ` :ranges='${JSON.stringify(input.ranges)}'`
     : ''
-  return `<DynamicCode id="${escapeAttr(input.id)}" lang="${escapeAttr(input.lang)}" origin-hash="${hash}" code-lz="${encoded}"${meta} />`
+  return `<DynamicCode id="${escapeAttr(input.id)}" lang="${escapeAttr(input.lang)}" origin-hash="${hash}" code-lz="${encoded}"${rangesAttr} />`
 }
