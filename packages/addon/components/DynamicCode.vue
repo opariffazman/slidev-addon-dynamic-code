@@ -85,6 +85,13 @@ async function refreshHighlight(code: string, lang: string): Promise<void> {
       lang,
       themes: { light: 'vitesse-light', dark: 'vitesse-dark' },
       defaultColor: false,
+      transformers: [{
+        pre(node) {
+          const existing = (node.properties.class as string | undefined) || ''
+          if (!existing.includes('slidev-code'))
+            node.properties.class = `${existing} slidev-code`.trim()
+        },
+      }],
     })
   }
   catch {
@@ -104,12 +111,15 @@ watch(displayContent, (c) => {
 const renderedHtml = computed(() => {
   if (highlightedHtml.value)
     return highlightedHtml.value
-  return `<pre class="dynamic-code-plain"><code>${escapeHtml(displayContent.value)}</code></pre>`
+  return `<pre class="shiki slidev-code"><code>${escapeHtml(displayContent.value)}</code></pre>`
 })
 </script>
 
 <template>
-  <div ref="wrapperRef" class="dynamic-code-wrapper group">
+  <div
+    ref="wrapperRef"
+    class="dynamic-code-wrapper slidev-code-wrapper relative group"
+  >
     <div class="dynamic-code-render" v-html="renderedHtml" />
     <textarea
       v-model="liveContent"
@@ -139,22 +149,11 @@ const renderedHtml = computed(() => {
 <style>
 .dynamic-code-wrapper {
   position: relative;
-  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
-  border-radius: var(--slidev-code-radius, 6px);
-  margin: var(--slidev-code-margin, 0.5em 0);
-  line-height: 1.5;
   overflow: hidden;
+  border-radius: var(--slidev-code-radius, 6px);
 }
-.dynamic-code-render :deep(pre.shiki),
-.dynamic-code-render pre.dynamic-code-plain {
+.dynamic-code-render :deep(pre.slidev-code) {
   margin: 0;
-  padding: var(--slidev-code-padding, 0.75em 1em);
-  white-space: pre;
-  overflow-x: auto;
-}
-.dynamic-code-render pre.dynamic-code-plain {
-  background: var(--slidev-code-background, transparent);
-  color: var(--slidev-code-color, inherit);
 }
 .dynamic-code-textarea {
   position: absolute;
@@ -167,9 +166,9 @@ const renderedHtml = computed(() => {
   border: none;
   outline: none;
   resize: none;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
+  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  font-size: var(--slidev-code-font-size, inherit);
+  line-height: var(--slidev-code-line-height, 1.5);
   padding: var(--slidev-code-padding, 0.75em 1em);
   margin: 0;
   white-space: pre;
