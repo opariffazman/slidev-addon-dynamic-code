@@ -2,8 +2,8 @@
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
 import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch, watchEffect } from 'vue'
-import { parseHighlightRange } from '../lib/parse-ranges'
 import { tryUseSlideContext } from '../composables/use-slidev-context'
+import { parseHighlightRange } from '../lib/parse-ranges'
 import { syncKey } from './sync-key'
 
 const props = defineProps<{
@@ -33,32 +33,6 @@ const incomingContent = computed<string | null>(() => {
 
 const displayContent = computed(() => incomingContent.value ?? liveContent.value)
 
-const debouncedBroadcast = useDebounceFn((value: string) => {
-  sync?.broadcastEdit(props.id, props.originHash, value)
-}, 200)
-
-watch(incomingContent, (val) => {
-  if (val != null)
-    liveContent.value = val
-})
-
-watch(liveContent, (val) => {
-  if (sync?.mode !== 'presenter') return
-  if (inReveal.value) return                  // suppress edits during reveal phase
-  if (val === incomingContent.value) return
-  debouncedBroadcast(val)
-})
-
-const wrapperRef = ref<HTMLElement | null>(null)
-function onReset(): void {
-  if (sync?.mode !== 'presenter')
-    return
-  sync?.broadcastReset(props.id)
-  liveContent.value = fenced
-}
-onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
-onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
-
 const clicksCtx: any = slideCtx?.$clicksContext ?? null
 
 // Per-mount unique id for $clicksContext bookkeeping. Crypto-random is fine —
@@ -74,28 +48,60 @@ const clicksInfo = shallowRef<{ start: number, end: number } | null>(
     : null,
 )
 
-onMounted(() => {
-  if (!clicksCtx || !clicksInfo.value) return
-  clicksCtx.register(componentId, clicksInfo.value)
-})
-
-onUnmounted(() => {
-  if (clicksCtx && clicksInfo.value)
-    clicksCtx.unregister(componentId)
-})
-
 // 1-based index into `ranges` for the currently-displayed step. -1 means the
 // reveal pipeline is inactive (no ranges, or context unavailable).
 const revealIndex = computed(() => {
-  if (!props.ranges?.length || !clicksCtx || !clicksInfo.value) return -1
+  if (!props.ranges?.length || !clicksCtx || !clicksInfo.value)
+    return -1
   return Math.max(0, clicksCtx.current - clicksInfo.value.start + 1)
 })
 
 // True while the user is still walking through reveal steps before the final
 // one. Unlocks editing once the final ranges item is displayed.
 const inReveal = computed(() => {
-  if (!props.ranges?.length || revealIndex.value < 0) return false
+  if (!props.ranges?.length || revealIndex.value < 0)
+    return false
   return revealIndex.value < props.ranges.length - 1
+})
+
+const debouncedBroadcast = useDebounceFn((value: string) => {
+  sync?.broadcastEdit(props.id, props.originHash, value)
+}, 200)
+
+watch(incomingContent, (val) => {
+  if (val != null)
+    liveContent.value = val
+})
+
+watch(liveContent, (val) => {
+  if (sync?.mode !== 'presenter')
+    return
+  if (inReveal.value)
+    return // suppress edits during reveal phase
+  if (val === incomingContent.value)
+    return
+  debouncedBroadcast(val)
+})
+
+const wrapperRef = ref<HTMLElement | null>(null)
+function onReset(): void {
+  if (sync?.mode !== 'presenter')
+    return
+  sync?.broadcastReset(props.id)
+  liveContent.value = fenced
+}
+onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
+onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
+
+onMounted(() => {
+  if (!clicksCtx || !clicksInfo.value)
+    return
+  clicksCtx.register(componentId, clicksInfo.value)
+})
+
+onUnmounted(() => {
+  if (clicksCtx && clicksInfo.value)
+    clicksCtx.unregister(componentId)
 })
 
 // Returns the highlight spec to apply at the current step, handling Slidev's
@@ -174,11 +180,14 @@ const renderedHtml = computed(() => {
 })
 
 watchEffect(() => {
-  if (!highlightedHtml.value) return
+  if (!highlightedHtml.value)
+    return
   const wrapEl = wrapperRef.value
-  if (!wrapEl) return
+  if (!wrapEl)
+    return
   const pre = wrapEl.querySelector<HTMLElement>('.dynamic-code-render pre.shiki')
-  if (!pre) return
+  if (!pre)
+    return
 
   const { spec, hide } = currentRange.value
   // 'slidev-vclick-hidden' is Slidev's CSS class for v-click hide state

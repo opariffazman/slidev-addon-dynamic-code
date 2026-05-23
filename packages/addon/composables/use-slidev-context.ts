@@ -6,6 +6,10 @@ import { useSlideContext } from '@slidev/client'
 // own Vite bundle satisfies it; in tests, vi.mock replaces this entire helper
 // module so the import is never reached.
 export function tryUseSlideContext(): { $clicksContext?: any } | null {
-  try { return useSlideContext() as any }
-  catch { return null }
+  try {
+    return useSlideContext() as any
+  }
+  catch {
+    return null
+  }
 }
