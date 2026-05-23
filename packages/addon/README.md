@@ -60,6 +60,40 @@ Rules:
 
 The block renders normally for everyone until the presenter starts editing.
 
+### Click-stepped line reveal (since v0.2.0)
+
+You can combine a `{dynamic}` block with Slidev's native [line-highlight grammar](https://sli.dev/features/line-highlighting) to walk the audience through a snippet click-by-click, then let them watch you edit it live:
+
+````md
+```bash {dynamic id=install-walkthrough} {2-3|5|all}
+mkdir my-app
+cd my-app
+npm init -y
+npm install express
+npm start
+```
+````
+
+State machine:
+
+| Phase | Trigger | Highlight | Textarea |
+| --- | --- | --- | --- |
+| Reveal | each click advances to next step | the highlighted lines for that step | read-only, edits do not sync |
+| Final | reached at the last step in `{...|...|...}` | the last range item (`all` in the example) | editable for presenter; edits broadcast to audience |
+
+Unlocking is automatic at the LAST reveal step — no extra click needed beyond what the grammar implies.
+
+**Caveat — editing then navigating back.** If you edit the block, then click backward into the reveal phase, the original line-highlight ranges are reapplied to the *edited* content. If your edit inserted or removed lines, the dimmed-vs-highlighted lines may visually mis-align — they reference the original line numbers. This is a deliberate simplification; switch slides and return to reset.
+
+**Graceful degrade.** Old Slidev versions, the `/dynamic-code-admin` route, or anything else that does not expose `useSlideContext().$clicksContext` falls back to "no reveal, immediate edit". The block always renders.
+
+**Not yet supported on dynamic blocks** (warned and ignored at build time — fall back to a non-dynamic block if you need these):
+
+- `{at:N}` — pin reveal start to a specific slide click index
+- `{lines:true}` / `{startLine:N}` — line numbering
+- `{maxHeight:'…'}` — scrollable area
+- Magic Move (` ```md magic-move`)
+
 ## Deploy the relay (once)
 
 The Worker + Durable Object that brokers edits between presenter and audience.
