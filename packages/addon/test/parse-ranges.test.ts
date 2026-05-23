@@ -55,15 +55,15 @@ describe('parseRangeSteps', () => {
 })
 
 describe('parseHighlightRange', () => {
-  it('returns an empty set for "all"', () => {
-    expect([...parseHighlightRange('all', 4)]).toEqual([])
+  it('returns ALL line indices for "all" (matches Slidev parseRangeString)', () => {
+    expect([...parseHighlightRange('all', 4).values()].sort((a, b) => a - b)).toEqual([1, 2, 3, 4])
   })
 
-  it('returns an empty set for "*"', () => {
-    expect([...parseHighlightRange('*', 4)]).toEqual([])
+  it('returns ALL line indices for "*" (matches Slidev parseRangeString)', () => {
+    expect([...parseHighlightRange('*', 4).values()].sort((a, b) => a - b)).toEqual([1, 2, 3, 4])
   })
 
-  it('returns an empty set for "hide"', () => {
+  it('returns an empty set for "hide" (caller handles wrapper hide class)', () => {
     expect([...parseHighlightRange('hide', 4)]).toEqual([])
   })
 

@@ -20,7 +20,13 @@ export function parseRangeSteps(s: string | null): string[] | null {
 export function parseHighlightRange(spec: string, lineCount: number): Set<number> {
   const out = new Set<number>()
   const trimmed = spec.trim()
-  if (trimmed === 'all' || trimmed === '*' || trimmed === 'hide')
+  // Match Slidev's parseRangeString: "all" / "*" highlight every line; "hide"
+  // returns empty (caller handles wrapper hide class separately).
+  if (trimmed === 'all' || trimmed === '*') {
+    for (let i = 1; i <= lineCount; i++) out.add(i)
+    return out
+  }
+  if (trimmed === 'hide')
     return out
   for (const tok of trimmed.split(',')) {
     const t = tok.trim()

@@ -432,24 +432,30 @@ describe('<DynamicCode> ranges prop (highlight DOM)', () => {
     return wrapper
   }
 
-  it('applies .highlighted to the lines for the current step and .has-highlighted to <pre>', async () => {
+  it('applies slidev-code-highlighted to active lines and slidev-code-dishonored to the rest', async () => {
     const cur = ref(0)
     const wrapper = await mountAndWaitForShiki(cur, ['2-3', '5', 'all'], 'a\nb\nc\nd\ne')
     const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
-    // revealIndex = 0 → spec "2-3" → lines 2 and 3 highlighted (1-based)
+    // revealIndex = 0 → spec "2-3" → lines 2 and 3 highlighted (1-based);
+    // all other lines get the dim class so Slidev's CSS engages.
+    expect(lines[1]!.classes()).toContain('slidev-code-highlighted')
+    expect(lines[2]!.classes()).toContain('slidev-code-highlighted')
+    expect(lines[0]!.classes()).toContain('slidev-code-dishonored')
+    expect(lines[3]!.classes()).toContain('slidev-code-dishonored')
+    expect(lines[4]!.classes()).toContain('slidev-code-dishonored')
+    // Legacy aliases mirrored for back-compat with older themes.
     expect(lines[1]!.classes()).toContain('highlighted')
-    expect(lines[2]!.classes()).toContain('highlighted')
-    expect(lines[0]!.classes()).not.toContain('highlighted')
-    expect(lines[3]!.classes()).not.toContain('highlighted')
-    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).toContain('has-highlighted')
+    expect(lines[0]!.classes()).toContain('dishonored')
 
-    // Advance to 'all' final state → no .highlighted, no .has-highlighted
+    // Advance to 'all' final state → every line is "highlighted", none dishonored,
+    // matching Slidev's parseRangeString convention for "all" / "*".
     cur.value = 2
     await waitForShikiLines(wrapper)
     const linesFinal = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
-    for (const ln of linesFinal)
-      expect(ln.classes()).not.toContain('highlighted')
-    expect(wrapper.find('.dynamic-code-render pre.shiki').classes()).not.toContain('has-highlighted')
+    for (const ln of linesFinal) {
+      expect(ln.classes()).toContain('slidev-code-highlighted')
+      expect(ln.classes()).not.toContain('slidev-code-dishonored')
+    }
   })
 
   it('applies the slidev-vclick-hidden class on hide step and uses the NEXT spec for highlight', async () => {
@@ -458,7 +464,8 @@ describe('<DynamicCode> ranges prop (highlight DOM)', () => {
     // revealIndex 0 = 'hide' → wrapper gets slidev-vclick-hidden; highlight uses '2-3'
     expect(wrapper.find('.dynamic-code-wrapper').classes()).toContain('slidev-vclick-hidden')
     const lines = wrapper.findAll('.dynamic-code-render pre.shiki code > .line')
-    expect(lines[1]!.classes()).toContain('highlighted')
-    expect(lines[2]!.classes()).toContain('highlighted')
+    expect(lines[1]!.classes()).toContain('slidev-code-highlighted')
+    expect(lines[2]!.classes()).toContain('slidev-code-highlighted')
+    expect(lines[0]!.classes()).toContain('slidev-code-dishonored')
   })
 })

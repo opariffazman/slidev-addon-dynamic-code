@@ -191,18 +191,27 @@ watchEffect(() => {
     return
 
   const { spec, hide } = currentRange.value
-  // 'slidev-vclick-hidden' is Slidev's CSS class for v-click hide state
-  // (declared in @slidev/client/styles/code.css). Hardcoded on purpose — class
-  // names are user-facing API surface and more stable than module-internal
-  // exports.
+  // Class names hardcoded on purpose — class names are user-facing CSS surface
+  // and more stable than module-internal exports from @slidev/client.
+  // - 'slidev-vclick-hidden' is the v-click hide state.
+  // - 'slidev-code-highlighted' / 'slidev-code-dishonored' are the per-line
+  //   classes Slidev's own updateCodeHighlightRange toggles; only the
+  //   dishonored rule has visible styling (opacity: 0.3), which is what
+  //   produces the "dim non-highlighted lines" effect.
+  // - 'highlighted' / 'dishonored' are the legacy aliases Slidev still
+  //   maintains for back-compat. We mirror them so any consumer theme that
+  //   relies on the legacy names also dims correctly.
   wrapEl.classList.toggle('slidev-vclick-hidden', hide)
 
   const lines = Array.from(pre.querySelectorAll<HTMLElement>('code > .line'))
   const hl = parseHighlightRange(spec, lines.length)
   lines.forEach((el, i) => {
-    el.classList.toggle('highlighted', hl.has(i + 1))
+    const isHighlighted = hl.has(i + 1)
+    el.classList.toggle('slidev-code-highlighted', isHighlighted)
+    el.classList.toggle('slidev-code-dishonored', !isHighlighted)
+    el.classList.toggle('highlighted', isHighlighted)
+    el.classList.toggle('dishonored', !isHighlighted)
   })
-  pre.classList.toggle('has-highlighted', hl.size > 0 && hl.size < lines.length)
 }, { flush: 'post' })
 </script>
 
