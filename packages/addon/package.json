@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.3",
   "description": "Slidev addon for live-editable code blocks during presentations",
-  "author": "Opariff Azman",
+  "author": "opariffazman",
   "license": "MIT",
   "homepage": "https://github.com/opariffazman/slidev-addon-dynamic-code#readme",
   "repository": {

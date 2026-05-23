@@ -13,4 +13,4 @@ Two packages live in this monorepo:
 
 ## License
 
-MIT © Opariff Azman
+MIT © opariffazman
