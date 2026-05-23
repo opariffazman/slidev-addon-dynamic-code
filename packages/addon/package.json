@@ -1,20 +1,27 @@
 {
   "name": "slidev-addon-dynamic-code",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Slidev addon for live-editable code blocks during presentations",
   "author": "Opariff Azman",
   "license": "MIT",
+  "homepage": "https://github.com/opariffazman/slidev-addon-dynamic-code#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/opariffazman/slidev-addon-dynamic-code.git",
     "directory": "packages/addon"
   },
+  "bugs": {
+    "url": "https://github.com/opariffazman/slidev-addon-dynamic-code/issues"
+  },
   "keywords": [
     "slidev-addon",
     "slidev",
     "presentation",
-    "live-coding"
+    "live-coding",
+    "websocket",
+    "cloudflare-workers",
+    "durable-objects"
   ],
   "exports": {
     ".": "./index.ts",
@@ -25,6 +32,8 @@
     "./setup/routes": "./setup/routes.ts"
   },
   "files": [
+    "LICENSE",
+    "README.md",
     "components",
     "composables",
     "index.ts",
@@ -32,13 +41,16 @@
     "setup",
     "styles"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@slidev/types": "^52.0.0",
+    "@slidev/types": "^52.15.0",
     "shiki": "^4.0.0",
     "vue": "^3.5.0"
   },
@@ -47,7 +59,7 @@
     "lz-string": "^1.5.0"
   },
   "devDependencies": {
-    "@slidev/types": "^52.0.0",
+    "@slidev/types": "^52.15.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^15.11.7",
