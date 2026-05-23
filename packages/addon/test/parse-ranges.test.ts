@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseRangeSteps } from '../lib/parse-ranges'
+import { parseRangeSteps, parseHighlightRange } from '../lib/parse-ranges'
 
 describe('parseRangeSteps', () => {
   it('returns null for null / empty / whitespace', () => {
@@ -51,5 +51,48 @@ describe('parseRangeSteps', () => {
   it('returns null when any step is empty', () => {
     expect(parseRangeSteps('1||3')).toBeNull()
     expect(parseRangeSteps('|1|2')).toBeNull()
+  })
+})
+
+describe('parseHighlightRange', () => {
+  it('returns an empty set for "all"', () => {
+    expect([...parseHighlightRange('all', 4)]).toEqual([])
+  })
+
+  it('returns an empty set for "*"', () => {
+    expect([...parseHighlightRange('*', 4)]).toEqual([])
+  })
+
+  it('returns an empty set for "hide"', () => {
+    expect([...parseHighlightRange('hide', 4)]).toEqual([])
+  })
+
+  it('parses a single line', () => {
+    expect([...parseHighlightRange('3', 10).values()].sort((a, b) => a - b)).toEqual([3])
+  })
+
+  it('parses a range', () => {
+    expect([...parseHighlightRange('2-4', 10).values()].sort((a, b) => a - b)).toEqual([2, 3, 4])
+  })
+
+  it('parses a comma set with a range', () => {
+    expect([...parseHighlightRange('2-3,5', 10).values()].sort((a, b) => a - b)).toEqual([2, 3, 5])
+  })
+
+  it('silently drops out-of-range line numbers', () => {
+    expect([...parseHighlightRange('2-3,5', 4).values()].sort((a, b) => a - b)).toEqual([2, 3])
+    expect([...parseHighlightRange('99', 4)]).toEqual([])
+  })
+
+  it('silently drops line 0 and negatives in degenerate ranges', () => {
+    expect([...parseHighlightRange('0', 4)]).toEqual([])
+  })
+
+  it('handles reverse ranges by normalizing low..high', () => {
+    expect([...parseHighlightRange('4-2', 10).values()].sort((a, b) => a - b)).toEqual([2, 3, 4])
+  })
+
+  it('returns an empty set for unrecognized spec', () => {
+    expect([...parseHighlightRange('foo', 10)]).toEqual([])
   })
 })
