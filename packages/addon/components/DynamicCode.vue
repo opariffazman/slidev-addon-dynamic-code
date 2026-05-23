@@ -152,15 +152,18 @@ const renderedHtml = computed(() => {
   overflow: hidden;
   border-radius: var(--slidev-code-radius);
 }
-.dynamic-code-render :deep(pre.slidev-code) {
+.dynamic-code-render pre.slidev-code {
   margin: 0;
 }
 /* Force identical glyph metrics on the visible code and the overlaid
    textarea so the caret stays under the character the user is typing.
-   Mirrors the pattern slidev's own ShikiEditor.vue uses. */
-.dynamic-code-render :deep(pre.slidev-code),
-.dynamic-code-render :deep(pre.slidev-code) :deep(code),
-.dynamic-code-render :deep(pre.slidev-code) :deep(span),
+   Mirrors the pattern slidev's own ShikiEditor.vue uses.
+   This <style> block is unscoped on purpose so we can target the
+   v-html-rendered shiki output without :deep(). */
+.dynamic-code-render pre.slidev-code,
+.dynamic-code-render pre.slidev-code code,
+.dynamic-code-render pre.slidev-code .line,
+.dynamic-code-render pre.slidev-code span,
 .dynamic-code-textarea {
   font-family: var(--slidev-code-font-family) !important;
   font-size: var(--slidev-code-font-size) !important;
