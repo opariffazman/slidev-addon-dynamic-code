@@ -42,8 +42,10 @@ watch(incomingContent, (val) => {
 })
 
 watch(liveContent, (val) => {
-  if (sync?.mode === 'presenter' && val !== incomingContent.value)
-    debouncedBroadcast(val)
+  if (sync?.mode !== 'presenter') return
+  if (inReveal.value) return                  // suppress edits during reveal phase
+  if (val === incomingContent.value) return
+  debouncedBroadcast(val)
 })
 
 const wrapperRef = ref<HTMLElement | null>(null)

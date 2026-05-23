@@ -343,3 +343,57 @@ describe('<DynamicCode> ranges prop (reveal state)', () => {
     expect(wrapper.find('textarea').attributes('readonly')).toBeUndefined()
   })
 })
+
+describe('<DynamicCode> ranges prop (sync gating)', () => {
+  const code = 'npm install foo'
+  const codeLz = lz.compressToBase64(code)
+
+  it('does NOT call broadcastEdit while inReveal is true', async () => {
+    vi.useFakeTimers()
+    try {
+      const cur = ref(0)
+      const broadcastEdit = vi.fn()
+      slidevMock.hook = () => ({
+        $clicksContext: {
+          get current() { return cur.value },
+          register: vi.fn(),
+          unregister: vi.fn(),
+          calculateSince: () => ({ start: 1, end: 3 }),
+        },
+      })
+
+      const wrapper = mount(DynamicCode, {
+        props: { id: 'install', lang: 'bash', originHash: 'h', codeLz, ranges: ['2-3', '5', 'all'] },
+        global: {
+          provide: {
+            [syncKey as symbol]: {
+              mode: 'presenter',
+              state: ref({}),
+              status: ref('connected'),
+              broadcastEdit,
+              broadcastReset: () => {},
+              broadcastResetAll: () => {},
+            },
+          },
+        },
+      })
+
+      // Drive a content change via setValue — even though the textarea is
+      // [readonly] during reveal, setValue bypasses the DOM check and fires
+      // the input event. We're testing the broadcast guard, not the DOM gate.
+      await wrapper.find('textarea').setValue('forced change during reveal')
+      vi.advanceTimersByTime(500)
+      expect(broadcastEdit).not.toHaveBeenCalled()
+
+      // Advance to final reveal item, then change content again
+      cur.value = 2
+      await wrapper.vm.$nextTick()
+      await wrapper.find('textarea').setValue('edit after reveal')
+      vi.advanceTimersByTime(500)
+      expect(broadcastEdit).toHaveBeenCalledWith('install', 'h', 'edit after reveal')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+})
