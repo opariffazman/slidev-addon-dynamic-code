@@ -2,19 +2,13 @@
 
 Project memory for [slidev-addon-dynamic-code](https://github.com/opariffazman/slidev-addon-dynamic-code).
 
-> Written caveman-style: fragments OK, no fluff. Code/commands/paths normal.
+> Caveman style: fragments OK, no fluff. Code/commands/paths normal.
 
 ## What
 
 Slidev addon. Live-edit code blocks during talk. Edits broadcast to audience browsers via CF Worker + Durable Object relay. Static-build friendly (CF Pages etc.).
 
-Block syntax in markdown:
-
-````md
-```bash {dynamic id=NAME}
-npx wrangler deploy
-```
-````
+Architecture: [docs/architecture.md](docs/architecture.md)
 
 ## Repo shape
 
@@ -22,8 +16,6 @@ pnpm monorepo. Two packages:
 
 - `packages/addon/` — npm pkg `slidev-addon-dynamic-code` (Vue 3 + Shiki + WS client)
 - `packages/relay/` — CF Worker (private, deploy-only) `slidev-dynamic-code-relay`
-
-Spec + plan live in `~/work/docs/superpowers/{specs,plans}/2026-05-{22,23}-slidev-addon-dynamic-code-*.md` (not in this repo).
 
 ## Key files
 
@@ -99,11 +91,10 @@ export CLOUDFLARE_ACCOUNT_ID=...     # right sidebar on dash
 Tag-driven. CI publishes on `v*` tag push.
 
 ```bash
-# Bump version
-sed -i 's/"version": "0.1.X"/"version": "0.1.Y"/' packages/addon/package.json
+sed -i 's/"version": "0.X.Y"/"version": "0.X.Z"/' packages/addon/package.json
 pnpm install                                         # update lockfile
-git commit -am "chore(addon): bump to 0.1.Y"
-git tag -a v0.1.Y -m "v0.1.Y — what changed"
+git commit -am "chore(addon): bump to 0.X.Z"
+git tag -a v0.X.Z -m "v0.X.Z — what changed"
 git push --follow-tags
 gh run watch                                         # confirm green
 ```
@@ -124,14 +115,14 @@ CI file: `.github/workflows/release.yml`. Uses `NPM_TOKEN` secret (granular, "Al
 
 `.github/workflows/ci.yml` runs lint + typecheck + addon tests + relay tests on every push / PR. `release.yml` publishes on `v*` tag.
 
-## Gotchas to remember
+## Gotchas
 
 - pnpm 11 dropped `package.json` `pnpm.onlyBuiltDependencies` — moved to `pnpm-workspace.yaml`. New format: `allowBuilds: { pkg: true }` AND `onlyBuiltDependencies: [pkg]`.
 - pnpm 11 added `minimumReleaseAge` policy. Default cooldown blocks fresh-published packages for 24h. Add each new version of this addon to `minimumReleaseAgeExclude` in the consuming repo until 24h passes — or set `minimumReleaseAge: 0` workspace-wide to disable.
 - Slidev 52.15.x added `slide-import-guard` plugin. Blocks `<img src="/abs/path">` in slide markdown. Use `:src="\`${$slidev.configs.base ?? '/'}path\`"` instead.
 - For local testing into a consuming deck without npm publish: `pnpm pack --pack-destination /tmp/foo`, `cp /tmp/foo/*.tgz <deck>/vendor/`, `pnpm add -D file:./vendor/PKG.tgz`. Bump tarball name on each iteration (pnpm caches by file path).
-- npm classic Automation tokens are gone. Only granular tokens. First publish needs "All packages" scope (granular can't target nonexistent packages). After first publish, narrow to selected packages or set up Trusted Publishers (OIDC, no token).
-- `wrangler.jsonc` is preferred over `wrangler.toml` since wrangler 4. Both still work.
+- npm classic Automation tokens gone. Only granular tokens. First publish needs "All packages" scope (granular can't target nonexistent packages). After first publish, narrow to selected packages or set up Trusted Publishers (OIDC, no token).
+- `wrangler.jsonc` preferred over `wrangler.toml` since wrangler 4. Both still work.
 - Wrangler resets cwd after each command (claude-code shell quirk). Don't chain commands across cwd changes.
 
 ## Consumer pattern
@@ -148,10 +139,6 @@ dynamicCode:
 Presenter URL: `?presenter=TOKEN`. Audience: same URL without query. Token validated against Worker secret `PRESENTER_TOKEN`.
 
 Block ids must be unique across deck. Talk ids namespace the DO instance — different decks under same relay can reuse block ids freely.
-
-## Architecture in 1 sentence
-
-Build-time codeblock transformer emits `<DynamicCode>` Vue component (lz-encoded fenced + origin-hash); runtime component overlays an invisible textarea on shiki-rendered `<pre>`, syncs via WS to a Durable Object keyed by `talkId`; audience subscribes, presenter publishes, DO broadcasts + persists.
 
 ## Out of scope (do not add without strong reason)
 
