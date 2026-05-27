@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import configs from '#slidev/configs'
 import { useClipboard, useDebounceFn } from '@vueuse/core'
 import lz from 'lz-string'
 import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch, watchEffect } from 'vue'
@@ -31,7 +32,11 @@ const incomingContent = computed<string | null>(() => {
   return entry.content
 })
 
-const displayContent = computed(() => incomingContent.value ?? liveContent.value)
+const displayContent = computed(() => {
+  if (sync?.mode === 'presenter')
+    return liveContent.value
+  return incomingContent.value ?? liveContent.value
+})
 
 const clicksCtx: any = slideCtx?.$clicksContext ?? null
 
@@ -68,10 +73,12 @@ const debouncedBroadcast = useDebounceFn((value: string) => {
   sync?.broadcastEdit(props.id, props.originHash, value)
 }, 200)
 
-watch(incomingContent, (val) => {
+watch(incomingContent, (val, oldVal) => {
   if (val != null)
     liveContent.value = val
-})
+  else if (oldVal != null)
+    liveContent.value = fenced
+}, { immediate: true })
 
 watch(liveContent, (val) => {
   if (sync?.mode !== 'presenter')
@@ -84,14 +91,6 @@ watch(liveContent, (val) => {
 })
 
 const wrapperRef = ref<HTMLElement | null>(null)
-function onReset(): void {
-  if (sync?.mode !== 'presenter')
-    return
-  sync?.broadcastReset(props.id)
-  liveContent.value = fenced
-}
-onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
-onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
 
 onMounted(() => {
   if (!clicksCtx || !props.ranges?.length)
@@ -120,6 +119,8 @@ const currentRange = computed<{ spec: string, hide: boolean }>(() => {
 })
 
 const readonly = computed(() => sync?.mode !== 'presenter' || inReveal.value)
+
+const codeCopyEnabled = (configs as Record<string, unknown>).codeCopy !== false
 
 const { copy, copied } = useClipboard({ legacy: true })
 function onCopy(): void {
@@ -236,12 +237,19 @@ watchEffect(() => {
       :data-status="sync?.status.value"
     >{{ statusGlyph }}</span>
     <button
-      class="dynamic-code-copy"
+      v-if="codeCopyEnabled"
+      class="slidev-code-copy dynamic-code-copy"
+      :class="{ 'is-copied': copied }"
       :title="copied ? 'Copied' : 'Copy'"
       type="button"
       @click="onCopy"
     >
-      {{ copied ? '✓' : '⧉' }}
+      <svg v-if="copied" class="dynamic-code-copy-icon" viewBox="0 0 256 256" fill="currentColor">
+        <path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z" />
+      </svg>
+      <svg v-else class="dynamic-code-copy-icon" viewBox="0 0 256 256" fill="currentColor">
+        <path d="M200,32H163.74a47.92,47.92,0,0,0-71.48,0H56A16,16,0,0,0,40,48V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm-72,0a32,32,0,0,1,32,32H96A32,32,0,0,1,128,32Zm72,184H56V48H82.75A47.93,47.93,0,0,0,80,64v8a8,8,0,0,0,8,8h80a8,8,0,0,0,8-8V64a47.93,47.93,0,0,0-2.75-16H200Z" />
+      </svg>
     </button>
   </div>
 </template>
@@ -301,19 +309,25 @@ html.dark .dynamic-code-textarea { caret-color: #fff; }
 }
 .dynamic-code-copy {
   position: absolute;
-  top: 0.25em;
-  right: 0.25em;
+  top: 0;
+  right: 0;
   background: transparent;
   border: 0;
   color: inherit;
-  font-size: 1.1em;
   cursor: pointer;
   opacity: 0;
   transition: opacity 120ms;
   z-index: 2;
+  padding: 0.5rem;
 }
-.dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.6; }
+.dynamic-code-copy-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: block;
+}
+.dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.2; }
 .dynamic-code-copy:hover { opacity: 1 !important; }
+.dynamic-code-copy.is-copied { color: #10b981; opacity: 1 !important; }
 .dynamic-code-badge {
   position: absolute;
   top: 0.25em;

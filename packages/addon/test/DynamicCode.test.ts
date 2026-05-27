@@ -127,6 +127,40 @@ describe('<DynamicCode>', () => {
     expect(presenter.find('button.dynamic-code-copy').exists()).toBe(true)
   })
 
+  it('seeds liveContent from server state on mount so presenter does not broadcast stale original', async () => {
+    vi.useFakeTimers()
+    try {
+      const broadcastEdit = vi.fn()
+      const serverContent = 'pnpm add foo'
+      const state = { install: { hash: 'aaaaaaaaaaaa', content: serverContent } }
+      const wrapper = mount(DynamicCode, {
+        props: { id: 'install', lang: 'bash', originHash: 'aaaaaaaaaaaa', codeLz },
+        global: {
+          provide: {
+            [syncKey as symbol]: {
+              mode: 'presenter',
+              state: ref(state),
+              status: ref('connected'),
+              broadcastEdit,
+              broadcastReset: () => {},
+              broadcastResetAll: () => {},
+            },
+          },
+        },
+      })
+      const textarea = wrapper.find('textarea')
+      // Textarea should already hold the server-synced content, not the original
+      expect((textarea.element as HTMLTextAreaElement).value).toBe(serverContent)
+      // Typing the same server content should NOT trigger a broadcast (no change)
+      await textarea.setValue(serverContent)
+      vi.advanceTimersByTime(500)
+      expect(broadcastEdit).not.toHaveBeenCalled()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('broadcasts an edit after debounce when presenter types', async () => {
     vi.useFakeTimers()
     try {
@@ -191,29 +225,30 @@ describe('<DynamicCode>', () => {
     }
   })
 
-  it('reset event triggers broadcastReset and restores fenced content', async () => {
-    const broadcastReset = vi.fn()
+  it('restores fenced content when server state is cleared (admin reset)', async () => {
+    const state = ref<Record<string, { hash: string, content: string }>>({ install: { hash: 'h', content: 'pnpm i' } })
     const wrapper = mount(DynamicCode, {
       props: { id: 'install', lang: 'bash', originHash: 'h', codeLz },
       global: {
         provide: {
           [syncKey as symbol]: {
             mode: 'presenter',
-            state: ref({ install: { hash: 'h', content: 'pnpm i' } }),
+            state,
             status: ref('connected'),
             broadcastEdit: () => {},
-            broadcastReset,
+            broadcastReset: () => {},
             broadcastResetAll: () => {},
           },
         },
       },
     })
 
-    expect(wrapper.text()).toContain('pnpm i')
-    await wrapper.find('.dynamic-code-wrapper').element.dispatchEvent(new CustomEvent('dynamic-code:reset', { bubbles: true }))
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('pnpm i')
+    // Simulate server broadcasting a reset (entry removed from state)
+    state.value = {}
     await wrapper.vm.$nextTick()
 
-    expect(broadcastReset).toHaveBeenCalledWith('install')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe(code)
   })
 })
 
