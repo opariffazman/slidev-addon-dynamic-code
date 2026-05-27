@@ -245,6 +245,7 @@ watchEffect(() => {
     <button
       v-if="codeCopyEnabled"
       class="slidev-code-copy dynamic-code-copy"
+      :class="{ 'is-copied': copied }"
       :title="copied ? 'Copied' : 'Copy'"
       type="button"
       @click="onCopy"
@@ -332,7 +333,7 @@ html.dark .dynamic-code-textarea { caret-color: #fff; }
 }
 .dynamic-code-wrapper:hover .dynamic-code-copy { opacity: 0.2; }
 .dynamic-code-copy:hover { opacity: 1 !important; }
-.dynamic-code-copy[title="Copied"] { color: #10b981; opacity: 1 !important; }
+.dynamic-code-copy.is-copied { color: #10b981; opacity: 1 !important; }
 .dynamic-code-badge {
   position: absolute;
   top: 0.25em;
