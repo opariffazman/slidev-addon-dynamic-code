@@ -225,29 +225,30 @@ describe('<DynamicCode>', () => {
     }
   })
 
-  it('reset event triggers broadcastReset and restores fenced content', async () => {
-    const broadcastReset = vi.fn()
+  it('restores fenced content when server state is cleared (admin reset)', async () => {
+    const state = ref<Record<string, { hash: string, content: string }>>({ install: { hash: 'h', content: 'pnpm i' } })
     const wrapper = mount(DynamicCode, {
       props: { id: 'install', lang: 'bash', originHash: 'h', codeLz },
       global: {
         provide: {
           [syncKey as symbol]: {
             mode: 'presenter',
-            state: ref({ install: { hash: 'h', content: 'pnpm i' } }),
+            state,
             status: ref('connected'),
             broadcastEdit: () => {},
-            broadcastReset,
+            broadcastReset: () => {},
             broadcastResetAll: () => {},
           },
         },
       },
     })
 
-    expect(wrapper.text()).toContain('pnpm i')
-    await wrapper.find('.dynamic-code-wrapper').element.dispatchEvent(new CustomEvent('dynamic-code:reset', { bubbles: true }))
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('pnpm i')
+    // Simulate server broadcasting a reset (entry removed from state)
+    state.value = {}
     await wrapper.vm.$nextTick()
 
-    expect(broadcastReset).toHaveBeenCalledWith('install')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe(code)
   })
 })
 

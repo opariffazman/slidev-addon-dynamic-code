@@ -73,9 +73,11 @@ const debouncedBroadcast = useDebounceFn((value: string) => {
   sync?.broadcastEdit(props.id, props.originHash, value)
 }, 200)
 
-watch(incomingContent, (val) => {
+watch(incomingContent, (val, oldVal) => {
   if (val != null)
     liveContent.value = val
+  else if (oldVal != null)
+    liveContent.value = fenced
 }, { immediate: true })
 
 watch(liveContent, (val) => {
@@ -89,14 +91,6 @@ watch(liveContent, (val) => {
 })
 
 const wrapperRef = ref<HTMLElement | null>(null)
-function onReset(): void {
-  if (sync?.mode !== 'presenter')
-    return
-  sync?.broadcastReset(props.id)
-  liveContent.value = fenced
-}
-onMounted(() => wrapperRef.value?.addEventListener('dynamic-code:reset', onReset))
-onUnmounted(() => wrapperRef.value?.removeEventListener('dynamic-code:reset', onReset))
 
 onMounted(() => {
   if (!clicksCtx || !props.ranges?.length)
