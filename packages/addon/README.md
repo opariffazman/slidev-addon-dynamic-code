@@ -153,9 +153,8 @@ Then:
 
 - Click into any `{dynamic}` block → caret appears + blue focus ring → type freely. The audience sees your edits in ~1 second (debounced 200 ms).
 - A **`●` green badge** top-right of each dynamic block confirms the WebSocket is live (presenter-only — audience never sees it).
-- **Right-click → "Reset dynamic block"** restores that block to its fenced original.
-- **`Ctrl+Shift+R`** (or `Cmd+Shift+R`) while focused inside a block — same reset.
-- **Copy button** (small `⧉` top-right on hover) — copies the **currently displayed** content. Available to both presenter and audience.
+- **Copy button** (clipboard icon top-right on hover) — copies the **currently displayed** content. Available to both presenter and audience.
+- **Reset** is available only via the [admin route](#admin-route) — per-block or reset-all.
 
 ## Admin route
 
@@ -186,7 +185,7 @@ The caret colour uses Slidev's `--shiki-light` / `--shiki-dark` vars so it stays
 
 - Edits are persisted forever in the Durable Object's SQLite, keyed by `(talkId, blockId)`.
 - They survive Worker code redeploys, DO hibernation, and audience refreshes.
-- Reset paths: per-block (context menu, `Ctrl+Shift+R`) or whole-talk (admin route → Reset all).
+- Reset paths: per-block (admin route → Reset) or whole-talk (admin route → Reset all).
 - If you redeploy the deck with a different fenced source for an existing block id, the **origin hash** baked at build time changes. The DO entry is automatically invalidated on the next presenter edit, so audience browsers see the new fenced content instead of stale persisted edits.
 - To wipe state for the next cohort without using the admin UI, change `dynamicCode.talkId` to a new value and redeploy. (The old DO storage stays orphaned but does not bill while hibernated.)
 
@@ -204,8 +203,7 @@ A 5-minute check before going live.
 2. **Visit the audience URL** on a second device / incognito window. Confirm dynamic blocks render exactly like regular code blocks.
 3. **Visit the presenter URL** with `?presenter=YOUR_TOKEN`. Confirm the `●` badge appears top-right of each dynamic block.
 4. **Type into a dynamic block.** The audience window reflects the change within ~1 second.
-5. **Right-click → "Reset dynamic block".** Both screens snap back to the fenced original.
-6. **Visit `/dynamic-code-admin?presenter=YOUR_TOKEN`.** Confirm "Reset all" works and the table is empty after.
+5. **Visit `/dynamic-code-admin?presenter=YOUR_TOKEN`.** Confirm "Reset all" works and the table is empty after.
 
 If anything fails, see [Troubleshooting](#troubleshooting).
 

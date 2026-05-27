@@ -43,8 +43,8 @@ packages/addon/
 ├── setup/transformers.ts            # defineTransformersSetup → codeblocks: [...]
 ├── setup/main.ts                    # defineAppSetup → registers DynamicCode + provides sync
 ├── setup/routes.ts                  # /dynamic-code-admin
-├── setup/shortcuts.ts               # Ctrl+Shift+R reset
-└── setup/context-menu.ts            # right-click reset (presenter only)
+├── setup/shortcuts.ts               # pass-through (no custom shortcuts)
+└── setup/context-menu.ts            # pass-through (no custom menu items)
 
 packages/relay/
 ├── wrangler.jsonc                   # CF config (JSONC not TOML)
