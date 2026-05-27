@@ -1,15 +1,17 @@
 # slidev-addon-dynamic-code
 
-> Live-editable code blocks for Slidev presentations.
+Live-editable code blocks for [Slidev](https://sli.dev) presentations. Presenter edits code on a slide mid-talk, every audience browser updates in real time.
 
-A [Slidev](https://sli.dev) addon that lets the presenter tweak specific code blocks during a talk and broadcasts the changes to every audience browser viewing the same deck. Static build friendly — works on Cloudflare Pages and any other static host.
+## Packages
 
-Pre-talk runbook and full setup live in [`packages/addon/README.md`](packages/addon/README.md).
+| Package | Purpose | Docs |
+|---------|---------|------|
+| [`packages/addon`](packages/addon) | Slidev addon — install into your deck | [Usage & setup](packages/addon/README.md) |
+| [`packages/relay`](packages/relay) | Cloudflare Worker relay — deploy once | [Deploy guide](packages/relay/README.md) |
 
-Two packages live in this monorepo:
+## How it works
 
-- `packages/addon` — the Slidev addon you `pnpm add` into your slides project.
-- `packages/relay` — the Cloudflare Worker + Durable Object that brokers edits between presenter and audience.
+See [Architecture](docs/architecture.md) for the full build-time → runtime → WebSocket flow.
 
 ## License
 
